@@ -19,7 +19,7 @@ static VriResult d3d11_fence_create(VriDevice device, uint64_t initial_value, Vr
     *p_fence = vri_object_allocate(device, &device->allocation_callback, fence_size, VRI_OBJECT_FENCE);
     if (!*p_fence) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to allocate fence");
-        return VRI_FAILURE;
+        return VRI_ERROR_OUT_OF_MEMORY;
     }
 
     VriD3D11Fence *d3d11_fence = (VriD3D11Fence *)(*p_fence + 1);
@@ -39,7 +39,7 @@ static VriResult d3d11_fence_create(VriDevice device, uint64_t initial_value, Vr
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create D3D11 fence");
         device->allocation_callback.pfn_free(*p_fence, fence_size, 8);
         *p_fence = NULL;
-        return VRI_FAILURE;
+        return VRI_ERROR_SYSTEM_FAILURE;
     }
 
     d3d11_fence->event = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -48,7 +48,7 @@ static VriResult d3d11_fence_create(VriDevice device, uint64_t initial_value, Vr
         COM_RELEASE(d3d11_fence->p_fence);
         device->allocation_callback.pfn_free(*p_fence, fence_size, 8);
         *p_fence = NULL;
-        return VRI_FAILURE;
+        return VRI_ERROR_SYSTEM_FAILURE;
     }
 
     d3d11_fence->value = initial_value;

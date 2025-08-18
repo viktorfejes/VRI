@@ -31,7 +31,8 @@ typedef bool     VriBool;
 
 VRI_DEFINE_HANDLE(VriDevice)
 VRI_DEFINE_HANDLE(VriQueue)
-VRI_DEFINE_HANDLE(VriCommandList)
+VRI_DEFINE_HANDLE(VriCommandBuffer)
+VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriCommandPool)
 VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriFence)
 VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriSwapchain)
 VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriTexture)
@@ -45,12 +46,18 @@ VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriTexture)
 #define VRI_MAX(a, b)     ((a) > (b) ? (a) : (b))
 
 typedef enum {
+    VRI_ERROR_SYSTEM_FAILURE = -5,
+    VRI_ERROR_DEVICE_REMOVED = -4,
+    VRI_ERROR_UNSUPPORTED = -3,
+    VRI_ERROR_OUT_OF_MEMORY = -2,
+    VRI_ERROR_INVALID_API_USAGE = -1,
     VRI_SUCCESS = 0,
-    VRI_FAILURE = 1,
-    VRI_UNSUPPORTED = 2,
-    VRI_INVALID_ARGUMENT = 3,
+    VRI_INCOMPLETE = 1,
+    VRI_SUBOPTIMAL = 2,
     VRI_RESULT_MAX_ENUM = 0x7FFFFFFF
 } VriResult;
+#define VRI_OK(result)    ((result) >= VRI_SUCCESS)
+#define VRI_ERROR(result) ((result) < VRI_SUCCESS)
 
 typedef enum {
     VRI_MESSAGE_SEVERITY_INFO = 0,
@@ -150,6 +157,20 @@ typedef enum {
 } VriSwapchainFlagBits;
 typedef VriFlags VriSwapchainFlags;
 
+typedef enum {
+    VRI_COMMAND_POOL_FLAG_BIT_NONE = 0,
+    VRI_COMMAND_POOL_FLAG_BIT_RESET_COMMAND_BUFFER = 1 << 0,
+    VRI_COMMAND_POOL_FLAG_BIT_TRANSIENT = 1 << 1,
+    VRI_COMMAND_POOL_FLAG_BIT_PROTECTED = 1 << 2
+} VriCommandPoolFlagBits;
+typedef VriFlags VriCommandPoolFlags;
+
+typedef enum {
+    VRI_COMMAND_POOL_RESET_FLAG_BIT_NONE = 0,
+    VRI_COMMAND_POOL_RESET_FLAG_BIT_RELEASE_RESOURCES = 1 << 0
+} VriCommandPoolResetFlagBits;
+typedef VriFlags VriCommandPoolResetFlags;
+
 typedef void (*PFN_VriMessageCallback)(
     VriMessageSeverity severity,
     const char        *p_message);
@@ -222,8 +243,23 @@ typedef struct {
     uint8_t              frames_in_flight;
 } VriSwapchainDesc;
 
+typedef struct {
+    VriQueueType        queue_type;
+    VriCommandPoolFlags flags;
+} VriCommandPoolDesc;
+
+typedef struct {
+    VriCommandPool command_pool;
+    uint32_t       command_buffer_count;
+} VriCommandBufferAllocateDesc;
+
 typedef void (*PFN_VriDeviceDestroy)(VriDevice device);
-typedef VriResult (*PFN_VriTextureCreate)(VriDevice device, VriTextureDesc *p_desc, VriTexture *p_texture);
+typedef VriResult (*PFN_VriCommandPoolCreate)(VriDevice device, const VriCommandPoolDesc *p_desc, VriCommandPool *p_command_pool);
+typedef void (*PFN_VriCommandPoolDestroy)(VriDevice device, VriCommandPool command_pool);
+typedef void (*PFN_VriCommandPoolReset)(VriDevice device, VriCommandPool command_pool, VriCommandPoolResetFlags flags);
+typedef VriResult (*PFN_VriCommandBuffersAllocate)(VriDevice device, const VriCommandBufferAllocateDesc *p_desc, VriCommandBuffer *p_command_buffers);
+typedef void (*PFN_VriCommandBuffersFree)(VriDevice device, VriCommandPool command_pool, uint32_t command_buffer_count, const VriCommandBuffer *p_command_buffers);
+typedef VriResult (*PFN_VriTextureCreate)(VriDevice device, const VriTextureDesc *p_desc, VriTexture *p_texture);
 typedef void (*PFN_VriTextureDestroy)(VriDevice device, VriTexture texture);
 typedef VriResult (*PFN_VriFenceCreate)(VriDevice device, uint64_t initial_value, VriFence *p_fence);
 typedef void (*PFN_VriFenceDestroy)(VriDevice device, VriFence fence);
@@ -246,10 +282,35 @@ VriResult vri_device_create(
 void vri_device_destroy(
     VriDevice device);
 
+VriResult vri_command_pool_create(
+    VriDevice                 device,
+    const VriCommandPoolDesc *p_desc,
+    VriCommandPool           *p_command_pool);
+
+void vri_command_pool_destroy(
+    VriDevice      device,
+    VriCommandPool command_pool);
+
+void vri_command_pool_reset(
+    VriDevice                device,
+    VriCommandPool           command_pool,
+    VriCommandPoolResetFlags flags);
+
+VriResult vri_command_buffers_allocate(
+    VriDevice                           device,
+    const VriCommandBufferAllocateDesc *p_desc,
+    VriCommandBuffer                   *p_command_buffers);
+
+void vri_command_buffers_free(
+    VriDevice               device,
+    VriCommandPool          command_pool,
+    uint32_t                command_buffer_count,
+    const VriCommandBuffer *p_command_buffers);
+
 VriResult vri_texture_create(
-    VriDevice       device,
-    VriTextureDesc *p_desc,
-    VriTexture     *p_texture);
+    VriDevice             device,
+    const VriTextureDesc *p_desc,
+    VriTexture           *p_texture);
 
 void vri_texture_destroy(
     VriDevice  device,

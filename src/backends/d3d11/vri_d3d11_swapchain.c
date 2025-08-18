@@ -21,7 +21,7 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
 
     HWND hwnd = (HWND)p_desc->p_window_desc->p_hwnd;
     if (!hwnd) {
-        return VRI_INVALID_ARGUMENT;
+        return VRI_ERROR_INVALID_API_USAGE;
     }
 
     // TODO: Encapsulate into a getter on the device?
@@ -32,12 +32,13 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
     IDXGISwapChain1 *swapchain1 = NULL;
     IDXGISwapChain4 *swapchain4 = NULL;
     ID3D11Resource  *native_texture = NULL;
+    VriResult        result = VRI_SUCCESS;
 
     // Get the factory from the adapter
     HRESULT hr = adapter->lpVtbl->GetParent(adapter, COM_IID_PPV_ARGS(IDXGIFactory2, &factory2));
     if (FAILED(hr)) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to get DXGI Factory2");
-        return VRI_FAILURE;
+        return VRI_ERROR_SYSTEM_FAILURE;
     }
 
     DXGI_FORMAT format = vri_to_dxgi_format(p_desc->format)->typed;
@@ -58,6 +59,7 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
     hr = factory2->lpVtbl->CreateSwapChainForHwnd(factory2, (IUnknown *)d3d11_device->p_device, hwnd, &desc, NULL, NULL, &swapchain1);
     if (FAILED(hr)) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create base swapchain");
+        result = VRI_ERROR_SYSTEM_FAILURE;
         goto error;
     }
 
@@ -65,13 +67,15 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
     hr = factory2->lpVtbl->MakeWindowAssociation(factory2, hwnd, DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER);
     if (FAILED(hr)) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Couldn't make window association");
+        result = VRI_ERROR_UNSUPPORTED;
         goto error;
     }
 
     // Upgrade to Swapchain4
     hr = swapchain1->lpVtbl->QueryInterface(swapchain1, COM_IID_PPV_ARGS(IDXGISwapChain4, &swapchain4));
     if (FAILED(hr)) {
-        dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to update base swapchain to Swapchain4");
+        dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to upgrade to IDXGISwapChain4. System may be too old.");
+        result = VRI_ERROR_UNSUPPORTED;
         goto error;
     }
 
@@ -94,6 +98,7 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
         hr = swapchain4->lpVtbl->SetMaximumFrameLatency(swapchain4, frames_in_flight);
         if (FAILED(hr)) {
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to set maximum frame latency");
+            result = VRI_ERROR_UNSUPPORTED;
             goto error;
         }
         // Store waitable object handle after setting max latency
@@ -117,6 +122,7 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
     *p_swapchain = vri_object_allocate(device, &device->allocation_callback, swapchain_size, VRI_OBJECT_SWAPCHAIN);
     if (!*p_swapchain) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_FATAL, "Allocation for swapchain struct failed.");
+        result = VRI_ERROR_OUT_OF_MEMORY;
         goto error;
     }
 
@@ -129,11 +135,13 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
         if (FAILED(hr)) {
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to get buffer from swapchain");
             device->allocation_callback.pfn_free((*p_swapchain), swapchain_size, 8);
+            result = VRI_ERROR_SYSTEM_FAILURE;
             goto error;
         }
 
         if (d3d11_texture_create_from_resource(device, &native_texture, &internal->texture) != VRI_SUCCESS) {
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Couldn't create textures from swapchain's backbuffer");
+            result = VRI_ERROR_SYSTEM_FAILURE;
             goto error;
         }
     }
@@ -157,7 +165,7 @@ error:
     COM_SAFE_RELEASE(swapchain1);
     COM_SAFE_RELEASE(factory2);
 
-    return VRI_FAILURE;
+    return result;
 }
 
 static void swapchain_destroy(VriDevice device, VriSwapchain swapchain) {
@@ -198,11 +206,22 @@ static VriResult swapchain_present(VriDevice device, VriSwapchain swapchain, Vri
     uint32_t           present_flags = ((!sync_interval) & !!(internal->flags & VRI_SWAPCHAIN_FLAG_BIT_ALLOW_TEARING)) * DXGI_PRESENT_ALLOW_TEARING;
 
     HRESULT hr = internal->p_swapchain->lpVtbl->Present(internal->p_swapchain, sync_interval, present_flags);
-    if (FAILED(hr)) return VRI_FAILURE;
 
-    internal->present_id++;
+    if (SUCCEEDED(hr)) {
+        internal->present_id++;
+        return VRI_SUCCESS;
+    }
 
-    return VRI_SUCCESS;
+    switch (hr) {
+        case DXGI_ERROR_DEVICE_REMOVED:
+        case DXGI_ERROR_DEVICE_RESET:
+            return VRI_ERROR_DEVICE_REMOVED;
+        case DXGI_STATUS_OCCLUDED:
+            // This is not necessarily a failure, but the app might want to pause rendering
+            return VRI_SUBOPTIMAL;
+        default:
+            return VRI_ERROR_SYSTEM_FAILURE;
+    }
 }
 
 static size_t get_swapchain_size(void) {

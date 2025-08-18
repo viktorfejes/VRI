@@ -43,12 +43,12 @@ static void        *default_allocator_allocate(size_t size, size_t alignment);
 static void         default_allocator_free(void *p_memory, size_t size, size_t alignment);
 static void         default_message_callback(VriMessageSeverity severity, const char *p_message);
 
-void vri_object_base_init(struct VriDevice_T *device, VriObjectBase *base, VriObjectType type) {
+void vri_object_base_init(VriDevice device, VriObjectBase *base, VriObjectType type) {
     base->type = type;
     base->p_device = device;
 }
 
-void *vri_object_allocate(struct VriDevice_T *device, const VriAllocationCallback *alloc, size_t size, VriObjectType type) {
+void *vri_object_allocate(VriDevice device, const VriAllocationCallback *alloc, size_t size, VriObjectType type) {
     void *ptr = alloc->pfn_allocate(size, 8);
     if (ptr == NULL) return NULL;
 
@@ -63,7 +63,7 @@ static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_cou
     IDXGIFactory4 *dxgi_factory = NULL;
     HRESULT        hr = CreateDXGIFactory2(0, IID_PPV_ARGS_C(IDXGIFactory4, &dxgi_factory));
     if (FAILED(hr)) {
-        return VRI_UNSUPPORTED;
+        return VRI_ERROR_UNSUPPORTED;
     }
 
     uint32_t       adapter_count = 0;
@@ -90,7 +90,7 @@ static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_cou
 
     if (!adapter_count) {
         dxgi_factory->lpVtbl->Release(dxgi_factory);
-        return VRI_FAILURE;
+        return VRI_ERROR_SYSTEM_FAILURE;
     }
 
     VriAdapterDesc queried_adapter_descs[ADAPTER_MAX_COUNT];
@@ -144,7 +144,7 @@ static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_cou
     dxgi_factory->lpVtbl->Release(dxgi_factory);
 
     if (validated_adapter_count == 0) {
-        return VRI_UNSUPPORTED;
+        return VRI_ERROR_UNSUPPORTED;
     }
 
     // Sort adapters based on some scoring
@@ -160,7 +160,7 @@ static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_cou
 #endif
 
 VriResult vri_adapters_enumerate(VriAdapterDesc *p_descs, uint32_t *p_desc_count) {
-    VriResult result = VRI_FAILURE;
+    VriResult result = VRI_ERROR_SYSTEM_FAILURE;
 
 #if VRI_ENABLE_VK_SUPPORT
     // Vulkan return actual capabilities, so let's try this first
@@ -198,7 +198,7 @@ void vri_report_live_objects(void) {
 }
 
 VriResult vri_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) {
-    VriResult result = VRI_FAILURE;
+    VriResult result = VRI_SUCCESS;
 
     VriDeviceDesc mod_desc = *p_desc;
     setup_callbacks(&mod_desc);
@@ -223,7 +223,7 @@ VriResult vri_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) {
         result = vk_device_create(&mod_desc, p_device);
 #endif
 
-    if (!result) return VRI_FAILURE;
+    if (VRI_ERROR(result)) return VRI_ERROR_SYSTEM_FAILURE;
 
     finish_device_creation(&mod_desc, p_device);
 
@@ -232,6 +232,26 @@ VriResult vri_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) {
 
 void vri_device_destroy(VriDevice device) {
     device->p_dispatch->pfn_device_destroy(device);
+}
+
+VriResult vri_command_pool_create(VriDevice device, const VriCommandPoolDesc *p_desc, VriCommandPool *p_command_pool) {
+    return device->p_dispatch->pfn_command_pool_create(device, p_desc, p_command_pool);
+}
+
+void vri_command_pool_destroy(VriDevice device, VriCommandPool command_pool) {
+    device->p_dispatch->pfn_command_pool_destroy(device, command_pool);
+}
+
+void vri_command_pool_reset(VriDevice device, VriCommandPool command_pool, VriCommandPoolResetFlags flags) {
+    device->p_dispatch->pfn_command_pool_reset(device, command_pool, flags);
+}
+
+VriResult vri_texture_create(VriDevice device, const VriTextureDesc *p_desc, VriTexture *p_texture) {
+    return device->p_dispatch->pfn_texture_create(device, p_desc, p_texture);
+}
+
+void vri_texture_destroy(VriDevice device, VriTexture texture) {
+    device->p_dispatch->pfn_texture_destroy(device, texture);
 }
 
 VriResult vri_fence_create(VriDevice device, uint64_t initial_value, VriFence *p_fence) {

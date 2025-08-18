@@ -11,9 +11,9 @@ typedef struct window {
     platform_window_t *platform;
 } window_t;
 
-static VriDevice device;
-static VriFence  image_available_fence;
-// static VriCommandPool cmd_pool;
+static VriDevice      device;
+static VriCommandPool cmd_pool;
+static VriFence       image_available_fence;
 
 static platform_state_t *platform_state;
 static input_state_t     input_state;
@@ -47,8 +47,9 @@ int main(void) {
         .enable_api_validation = true,
         .debug_callback = vri_callback,
     };
-    if (vri_device_create(&device_desc, &device) != VRI_SUCCESS) {
-        printf("Couldn't create D3D11 device\n");
+    VriResult res = 0;
+    if ((res = vri_device_create(&device_desc, &device)) != VRI_SUCCESS) {
+        printf("Couldn't create D3D11 device (%d)\n", res);
         return 1;
     }
 
@@ -105,6 +106,17 @@ int main(void) {
         return 1;
     }
 
+    {
+        VriCommandPoolDesc desc = {
+            .queue_type = VRI_QUEUE_TYPE_GRAPHICS,
+            .flags = VRI_COMMAND_POOL_FLAG_BIT_RESET_COMMAND_BUFFER,
+        };
+        if (vri_command_pool_create(device, &desc, &cmd_pool) != VRI_SUCCESS) {
+            printf("Couldn't create command pool");
+            return 1;
+        }
+    }
+
     while (!platform_window_should_close(window.platform)) {
         platform_process_messages();
 
@@ -114,6 +126,7 @@ int main(void) {
     }
 
     // Clean-up
+    vri_command_pool_destroy(device, cmd_pool);
     vri_fence_destroy(device, image_available_fence);
     vri_swapchain_destroy(device, window.swapchain);
     vri_device_destroy(device);

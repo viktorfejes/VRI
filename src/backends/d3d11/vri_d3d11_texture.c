@@ -3,7 +3,7 @@
 #include "vri_d3d11_common.h"
 #include "vri_d3d11_device.h"
 
-static VriResult d3d11_texture_create(VriDevice device, VriTextureDesc *p_desc, VriTexture *p_texture);
+static VriResult d3d11_texture_create(VriDevice device, const VriTextureDesc *p_desc, VriTexture *p_texture);
 static VriBool   fill_texture_details_from_resource(VriTexture texture, ID3D11Resource *resource);
 static size_t    get_texture_size(void);
 
@@ -12,7 +12,7 @@ void d3d11_register_texture_functions(VriDeviceDispatchTable *table) {
     table->pfn_texture_destroy = d3d11_texture_destroy;
 }
 
-static VriResult d3d11_texture_create(VriDevice device, VriTextureDesc *p_desc, VriTexture *p_texture) {
+static VriResult d3d11_texture_create(VriDevice device, const VriTextureDesc *p_desc, VriTexture *p_texture) {
     ID3D11Device5   *d3d11_device = ((VriD3D11Device *)device->p_backend_data)->p_device;
     VriDebugCallback dbg = device->debug_callback;
 
@@ -89,12 +89,13 @@ static VriResult d3d11_texture_create(VriDevice device, VriTextureDesc *p_desc, 
         } break;
 
         default:
-            return VRI_UNSUPPORTED;
+            dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Invalid texture type provided.");
+            return VRI_ERROR_INVALID_API_USAGE;
     }
 
     if (FAILED(hr)) {
-        dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create D3D11 Texture");
-        return VRI_FAILURE;
+        dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create D3D11 Texture resource.");
+        return (hr == E_OUTOFMEMORY) ? VRI_ERROR_OUT_OF_MEMORY : VRI_ERROR_SYSTEM_FAILURE;
     }
 
     // Allocate the new texture struct
@@ -103,7 +104,7 @@ static VriResult d3d11_texture_create(VriDevice device, VriTextureDesc *p_desc, 
     if (!*p_texture) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Couldn't allocate memory for Texture struct");
         texture_res->lpVtbl->Release(texture_res);
-        return VRI_FAILURE;
+        return VRI_ERROR_OUT_OF_MEMORY;
     }
 
     // Fill out the newly allocated OUT texture struct
@@ -131,7 +132,7 @@ VriResult d3d11_texture_create_from_resource(VriDevice device, ID3D11Resource **
     *p_texture = vri_object_allocate(device, &device->allocation_callback, tex_size, VRI_OBJECT_TEXTURE);
     if (!*p_texture) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Couldn't allocate memory for Texture struct");
-        return VRI_FAILURE;
+        return VRI_ERROR_OUT_OF_MEMORY;
     }
 
     // Add the internal data
@@ -141,7 +142,7 @@ VriResult d3d11_texture_create_from_resource(VriDevice device, ID3D11Resource **
     // Attempt to fill out the details of the texture from the resource
     if (!fill_texture_details_from_resource(*p_texture, *resource)) {
         device->allocation_callback.pfn_free(*p_texture, tex_size, 8);
-        return VRI_FAILURE;
+        return VRI_ERROR_INVALID_API_USAGE;
     }
 
     // Store the resource and take ownership
