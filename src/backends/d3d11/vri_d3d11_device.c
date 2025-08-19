@@ -1,5 +1,6 @@
 #include "vri_d3d11_common.h"
 
+#include "vri_d3d11_command_buffer.h"
 #include "vri_d3d11_command_pool.h"
 #include "vri_d3d11_device.h"
 #include "vri_d3d11_fence.h"
@@ -136,6 +137,7 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
     // Fill up the dispatch table
     d3d11_register_device_functions((*p_device)->p_dispatch);
     d3d11_register_command_pool_functions((*p_device)->p_dispatch);
+    d3d11_register_command_buffer_functions((*p_device)->p_dispatch);
     d3d11_register_texture_functions((*p_device)->p_dispatch);
     d3d11_register_fence_functions((*p_device)->p_dispatch);
     d3d11_register_swapchain_functions((*p_device)->p_dispatch);

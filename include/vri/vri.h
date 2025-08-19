@@ -140,6 +140,15 @@ typedef enum {
 } VriTextureType;
 
 typedef enum {
+    VRI_COMMAND_BUFFER_STATE_INVALID = 0,
+    VRI_COMMAND_BUFFER_STATE_INITIAL = 1,
+    VRI_COMMAND_BUFFER_STATE_RECORDING = 2,
+    VRI_COMMAND_BUFFER_STATE_EXECUTABLE = 3,
+    VRI_COMMAND_BUFFER_STATE_PENDING = 4,
+    VRI_COMMAND_BUFFER_STATE_MAX_ENUM = 0x7FFFFFFF
+} VriCommandBufferState;
+
+typedef enum {
     VRI_TEXTURE_USAGE_BIT_NONE = 0,
     VRI_TEXTURE_USAGE_BIT_SHADER_RESOURCE = 1 << 0,
     VRI_TEXTURE_USAGE_BIT_SHADER_RESOURCE_STORAGE = 1 << 1,
@@ -170,6 +179,12 @@ typedef enum {
     VRI_COMMAND_POOL_RESET_FLAG_BIT_RELEASE_RESOURCES = 1 << 0
 } VriCommandPoolResetFlagBits;
 typedef VriFlags VriCommandPoolResetFlags;
+
+typedef enum {
+    VRI_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT = 1 << 0,
+    VRI_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT = 1 << 1
+} VriCommandBufferUsageBits;
+typedef VriFlags VriCommandBufferUsage;
 
 typedef void (*PFN_VriMessageCallback)(
     VriMessageSeverity severity,
@@ -252,6 +267,10 @@ typedef struct {
     VriCommandPool command_pool;
     uint32_t       command_buffer_count;
 } VriCommandBufferAllocateDesc;
+
+typedef struct {
+    VriCommandBufferUsage usage;
+} VriCommandBufferBeginDesc;
 
 typedef void (*PFN_VriDeviceDestroy)(VriDevice device);
 typedef VriResult (*PFN_VriCommandPoolCreate)(VriDevice device, const VriCommandPoolDesc *p_desc, VriCommandPool *p_command_pool);
@@ -344,6 +363,20 @@ VriResult vri_swapchain_present(
     VriDevice    device,
     VriSwapchain swapchain,
     VriFence     fence);
+
+typedef VriResult (*PFN_VriCommandBufferBegin)(VriCommandBuffer command_buffer, const VriCommandBufferBeginDesc *p_desc);
+typedef VriResult (*PFN_VriCommandBufferEnd)(VriCommandBuffer command_buffer);
+typedef VriResult (*PFN_VriCommandBufferReset)(VriCommandBuffer command_buffer);
+
+VriResult vri_command_buffer_begin(
+    VriCommandBuffer                 command_buffer,
+    const VriCommandBufferBeginDesc *p_desc);
+
+VriResult vri_command_buffer_end(
+    VriCommandBuffer command_buffer);
+
+VriResult vri_command_buffer_reset(
+    VriCommandBuffer command_buffer);
 
 #ifdef __cplusplus
 }

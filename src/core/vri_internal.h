@@ -6,6 +6,7 @@
 typedef enum {
     VRI_OBJECT_DEVICE,
     VRI_OBJECT_COMMAND_POOL,
+    VRI_OBJECT_COMMAND_BUFFER,
     VRI_OBJECT_TEXTURE,
     VRI_OBJECT_FENCE,
     VRI_OBJECT_SWAPCHAIN,
@@ -21,6 +22,8 @@ typedef struct {
     PFN_VriCommandPoolCreate         pfn_command_pool_create;
     PFN_VriCommandPoolDestroy        pfn_command_pool_destroy;
     PFN_VriCommandPoolReset          pfn_command_pool_reset;
+    PFN_VriCommandBuffersAllocate    pfn_command_buffers_allocate;
+    PFN_VriCommandBuffersFree        pfn_command_buffers_free;
     PFN_VriTextureCreate             pfn_texture_create;
     PFN_VriTextureDestroy            pfn_texture_destroy;
     PFN_VriFenceCreate               pfn_fence_create;
@@ -32,7 +35,9 @@ typedef struct {
 } VriDeviceDispatchTable;
 
 typedef struct {
-    int placeholder;
+    PFN_VriCommandBufferBegin pfn_command_buffer_begin;
+    PFN_VriCommandBufferEnd   pfn_command_buffer_end;
+    PFN_VriCommandBufferReset pfn_command_buffer_reset;
 } VriCommandBufferDispatchTable;
 
 struct VriDevice_T {
@@ -51,8 +56,10 @@ struct VriCommandPool_T {
 };
 
 struct VriCommandBuffer_T {
-    VriObjectBase base;
-    void         *p_backend_data;
+    VriObjectBase                  base;
+    VriCommandBufferDispatchTable *p_dispatch;
+    VriCommandBufferState          state;
+    void                          *p_backend_data;
 };
 
 struct VriTexture_T {

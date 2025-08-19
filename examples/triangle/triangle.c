@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define MAX_CONCURRENT_FRAMES 2
+
 typedef struct window {
     VriSwapchain       swapchain;
     platform_window_t *platform;
@@ -15,7 +17,8 @@ static VriDevice      device;
 static VriCommandPool cmd_pool;
 static VriFence       image_available_fence;
 
-static platform_state_t *platform_state;
+static uint8_t           current_frame = 0;
+static platform_state_t *platform_state = NULL;
 static input_state_t     input_state;
 static window_t          window;
 
@@ -64,6 +67,24 @@ int main(void) {
         printf("   vram: %llu MB\n", adapter_descs[0].vram / (1024 * 1024));
     }
 
+    VriCommandBuffer cmd_buffers[2];
+    VriFence         frame_fences[2];
+
+    {
+        VriCommandBufferAllocateDesc desc = {
+            .command_pool = cmd_pool,
+            .command_buffer_count = MAX_CONCURRENT_FRAMES,
+        };
+        if (VRI_ERROR(vri_command_buffers_allocate(device, &desc, cmd_buffers))) {
+            printf("Couldn't allocate command buffers\n");
+            return 1;
+        }
+
+        for (int i = 0; i < MAX_CONCURRENT_FRAMES; ++i) {
+            vri_fence_create(device, 1, &frame_fences[i]);
+        }
+    }
+
     if (!input_initialize(&input_state)) {
         printf("Couldn't initialize input state\n");
         return 1;
@@ -96,8 +117,8 @@ int main(void) {
         .format = VRI_FORMAT_R8G8B8A8_UNORM,
         .color_space = VRI_COLORSPACE_SRGB_NONLINEAR,
         .flags = VRI_SWAPCHAIN_FLAG_BIT_VSYNC,
-        .texture_count = 2,
-        .frames_in_flight = 3,
+        .texture_count = MAX_CONCURRENT_FRAMES,
+        .frames_in_flight = MAX_CONCURRENT_FRAMES,
     };
     vri_swapchain_create(device, &swapchain_desc, &window.swapchain);
 
@@ -122,10 +143,29 @@ int main(void) {
 
         uint32_t image_index = 0;
         vri_swapchain_acquire_next_image(device, window.swapchain, image_available_fence, &image_index);
+
+        vri_command_buffer_reset(cmd_buffers[current_frame]);
+        VriCommandBufferBeginDesc cmd_buf_desc = {0};
+        const VriCommandBuffer    command_buffer = cmd_buffers[current_frame];
+        if (VRI_ERROR(vri_command_buffer_begin(command_buffer, &cmd_buf_desc))) {
+            printf("Command Buffer Begin Error\n");
+        }
+
+        if (VRI_ERROR(vri_command_buffer_end(command_buffer))) {
+            printf("Command Buffer End Error\n");
+        }
+
         vri_swapchain_present(device, window.swapchain, 0);
+
+        // Select next frame to render
+        current_frame = (current_frame + 1) % MAX_CONCURRENT_FRAMES;
     }
 
     // Clean-up
+    for (int i = 0; i < MAX_CONCURRENT_FRAMES; ++i) {
+        vri_fence_destroy(device, frame_fences[i]);
+    }
+    vri_command_buffers_free(device, cmd_pool, 2, cmd_buffers);
     vri_command_pool_destroy(device, cmd_pool);
     vri_fence_destroy(device, image_available_fence);
     vri_swapchain_destroy(device, window.swapchain);
