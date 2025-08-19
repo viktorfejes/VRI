@@ -232,72 +232,72 @@ VriResult vri_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) {
 
 // Calling Device table
 void vri_device_destroy(VriDevice device) {
-    device->p_dispatch->pfn_device_destroy(device);
+    device->dispatch.pfn_device_destroy(device);
 }
 
 VriResult vri_command_pool_create(VriDevice device, const VriCommandPoolDesc *p_desc, VriCommandPool *p_command_pool) {
-    return device->p_dispatch->pfn_command_pool_create(device, p_desc, p_command_pool);
+    return device->dispatch.pfn_command_pool_create(device, p_desc, p_command_pool);
 }
 
 void vri_command_pool_destroy(VriDevice device, VriCommandPool command_pool) {
-    device->p_dispatch->pfn_command_pool_destroy(device, command_pool);
+    device->dispatch.pfn_command_pool_destroy(device, command_pool);
 }
 
 void vri_command_pool_reset(VriDevice device, VriCommandPool command_pool, VriCommandPoolResetFlags flags) {
-    device->p_dispatch->pfn_command_pool_reset(device, command_pool, flags);
+    device->dispatch.pfn_command_pool_reset(device, command_pool, flags);
 }
 
 VriResult vri_command_buffers_allocate(VriDevice device, const VriCommandBufferAllocateDesc *p_desc, VriCommandBuffer *p_command_buffers) {
-    return device->p_dispatch->pfn_command_buffers_allocate(device, p_desc, p_command_buffers);
+    return device->dispatch.pfn_command_buffers_allocate(device, p_desc, p_command_buffers);
 }
 
 void vri_command_buffers_free(VriDevice device, VriCommandPool command_pool, uint32_t command_buffer_count, const VriCommandBuffer *p_command_buffers) {
-    device->p_dispatch->pfn_command_buffers_free(device, command_pool, command_buffer_count, p_command_buffers);
+    device->dispatch.pfn_command_buffers_free(device, command_pool, command_buffer_count, p_command_buffers);
 }
 
 VriResult vri_texture_create(VriDevice device, const VriTextureDesc *p_desc, VriTexture *p_texture) {
-    return device->p_dispatch->pfn_texture_create(device, p_desc, p_texture);
+    return device->dispatch.pfn_texture_create(device, p_desc, p_texture);
 }
 
 void vri_texture_destroy(VriDevice device, VriTexture texture) {
-    device->p_dispatch->pfn_texture_destroy(device, texture);
+    device->dispatch.pfn_texture_destroy(device, texture);
 }
 
 VriResult vri_fence_create(VriDevice device, uint64_t initial_value, VriFence *p_fence) {
-    return device->p_dispatch->pfn_fence_create(device, initial_value, p_fence);
+    return device->dispatch.pfn_fence_create(device, initial_value, p_fence);
 }
 
 void vri_fence_destroy(VriDevice device, VriFence fence) {
-    device->p_dispatch->pfn_fence_destroy(device, fence);
+    device->dispatch.pfn_fence_destroy(device, fence);
 }
 
 VriResult vri_swapchain_create(VriDevice device, const VriSwapchainDesc *p_desc, VriSwapchain *p_swapchain) {
-    return device->p_dispatch->pfn_swapchain_create(device, p_desc, p_swapchain);
+    return device->dispatch.pfn_swapchain_create(device, p_desc, p_swapchain);
 }
 
 void vri_swapchain_destroy(VriDevice device, VriSwapchain swapchain) {
-    device->p_dispatch->pfn_swapchain_destroy(device, swapchain);
+    device->dispatch.pfn_swapchain_destroy(device, swapchain);
 }
 
 VriResult vri_swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint32_t *p_image_index) {
-    return device->p_dispatch->pfn_swapchain_acquire_next_image(device, swapchain, fence, p_image_index);
+    return device->dispatch.pfn_swapchain_acquire_next_image(device, swapchain, fence, p_image_index);
 }
 
 VriResult vri_swapchain_present(VriDevice device, VriSwapchain swapchain, VriFence fence) {
-    return device->p_dispatch->pfn_swapchain_present(device, swapchain, fence);
+    return device->dispatch.pfn_swapchain_present(device, swapchain, fence);
 }
 
 // Calling Command Buffer table
 VriResult vri_command_buffer_begin(VriCommandBuffer command_buffer, const VriCommandBufferBeginDesc *p_desc) {
-    return command_buffer->p_dispatch->pfn_command_buffer_begin(command_buffer, p_desc);
+    return command_buffer->dispatch.pfn_command_buffer_begin(command_buffer, p_desc);
 }
 
 VriResult vri_command_buffer_end(VriCommandBuffer command_buffer) {
-    return command_buffer->p_dispatch->pfn_command_buffer_end(command_buffer);
+    return command_buffer->dispatch.pfn_command_buffer_end(command_buffer);
 }
 
 VriResult vri_command_buffer_reset(VriCommandBuffer command_buffer) {
-    return command_buffer->p_dispatch->pfn_command_buffer_reset(command_buffer);
+    return command_buffer->dispatch.pfn_command_buffer_reset(command_buffer);
 }
 
 static VriGpuVendor get_vendor_from_id(uint32_t vendor_id) {

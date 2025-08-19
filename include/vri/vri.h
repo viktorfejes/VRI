@@ -378,6 +378,9 @@ VriResult vri_command_buffer_end(
 VriResult vri_command_buffer_reset(
     VriCommandBuffer command_buffer);
 
+typedef VriResult (*PFN_VriQueueSubmit)(VriQueue queue, const VriSubmitDesc *p_descs, uint32_t submit_count, VriFence fence);
+typedef VriResult (*PFN_VriQueuePresent)(VriQueue queue, const VriPresentDesc *p_desc);
+
 #ifdef __cplusplus
 }
 #endif

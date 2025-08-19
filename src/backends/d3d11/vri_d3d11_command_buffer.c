@@ -21,9 +21,7 @@ static VriResult d3d11_command_buffers_allocate(VriDevice device, const VriComma
     for (uint32_t i = 0; i < p_desc->command_buffer_count; ++i) {
         VriCommandBuffer cmd = vri_object_allocate(device, &device->allocation_callback, get_command_buffer_size(), VRI_OBJECT_COMMAND_BUFFER);
         if (!cmd) return VRI_ERROR_OUT_OF_MEMORY;
-
-        cmd->p_dispatch = (VriCommandBufferDispatchTable *)(cmd + 1);
-        cmd->p_backend_data = (VriD3D11CommandBuffer *)(cmd->p_dispatch + 1);
+        cmd->p_backend_data = (VriD3D11CommandBuffer *)(cmd + 1);
 
         VriD3D11CommandBuffer *impl = (VriD3D11CommandBuffer *)cmd->p_backend_data;
         ID3D11Device5         *d3d11_device = ((VriD3D11Device *)device->p_backend_data)->p_device;
@@ -44,9 +42,9 @@ static VriResult d3d11_command_buffers_allocate(VriDevice device, const VriComma
 
         // Fill up the dispatch table
         // TODO: Move to a separate function
-        cmd->p_dispatch->pfn_command_buffer_begin = d3d11_command_buffer_begin;
-        cmd->p_dispatch->pfn_command_buffer_end = d3d11_command_buffer_end;
-        cmd->p_dispatch->pfn_command_buffer_reset = d3d11_command_buffer_reset;
+        cmd->dispatch.pfn_command_buffer_begin = d3d11_command_buffer_begin;
+        cmd->dispatch.pfn_command_buffer_end = d3d11_command_buffer_end;
+        cmd->dispatch.pfn_command_buffer_reset = d3d11_command_buffer_reset;
 
         cmd->state = VRI_COMMAND_BUFFER_STATE_INITIAL;
         impl->p_command_list = NULL;
@@ -106,7 +104,6 @@ static VriResult d3d11_command_buffer_reset(VriCommandBuffer command_buffer) {
 }
 
 static size_t get_command_buffer_size(void) {
-    return sizeof(struct VriCommandBuffer_T) +    // Base device size
-           sizeof(VriD3D11CommandBuffer) +        // Internal backend size
-           sizeof(VriCommandBufferDispatchTable); // Size of the dispatch table (vtable)
+    return sizeof(struct VriCommandBuffer_T) + // Base device size
+           sizeof(VriD3D11CommandBuffer);      // Internal backend size
 }

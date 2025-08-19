@@ -40,14 +40,19 @@ typedef struct {
     PFN_VriCommandBufferReset pfn_command_buffer_reset;
 } VriCommandBufferDispatchTable;
 
+typedef struct {
+    PFN_VriQueueSubmit  pfn_queue_submit;
+    PFN_VriQueuePresent pfn_queue_present;
+} VriQueueDispatchTable;
+
 struct VriDevice_T {
-    VriObjectBase           base;
-    VriDeviceDispatchTable *p_dispatch;
-    VriBackend              backend;
-    VriAllocationCallback   allocation_callback;
-    VriDebugCallback        debug_callback;
-    VriAdapterDesc          adapter_desc;
-    void                   *p_backend_data;
+    VriObjectBase          base;
+    VriDeviceDispatchTable dispatch;
+    VriBackend             backend;
+    VriAllocationCallback  allocation_callback;
+    VriDebugCallback       debug_callback;
+    VriAdapterDesc         adapter_desc;
+    void                  *p_backend_data;
 };
 
 struct VriCommandPool_T {
@@ -56,10 +61,17 @@ struct VriCommandPool_T {
 };
 
 struct VriCommandBuffer_T {
-    VriObjectBase                  base;
-    VriCommandBufferDispatchTable *p_dispatch;
-    VriCommandBufferState          state;
-    void                          *p_backend_data;
+    VriObjectBase                 base;
+    VriCommandBufferDispatchTable dispatch;
+    VriCommandBufferState         state;
+    void                         *p_backend_data;
+};
+
+struct VriQueue_T {
+    VriObjectBase         base;
+    VriQueueDispatchTable dispatch;
+    VriQueueType          type;
+    void                 *p_backend_data;
 };
 
 struct VriTexture_T {

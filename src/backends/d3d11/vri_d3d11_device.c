@@ -22,12 +22,8 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
         return VRI_ERROR_OUT_OF_MEMORY;
     }
 
-    // Dispatch table is right after the device
-    VriDeviceDispatchTable *disp = (VriDeviceDispatchTable *)(*p_device + 1);
-    (*p_device)->p_dispatch = disp;
-
-    // Backend data is after the dispatch table
-    VriD3D11Device *internal_state = (VriD3D11Device *)(disp + 1);
+    // Backend data is after the main data
+    VriD3D11Device *internal_state = (VriD3D11Device *)((*p_device) + 1);
     (*p_device)->p_backend_data = internal_state;
 
     // Identify the adapter in the API specific way
@@ -135,12 +131,12 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
     internal_state->p_immediate_context = context4;
 
     // Fill up the dispatch table
-    d3d11_register_device_functions((*p_device)->p_dispatch);
-    d3d11_register_command_pool_functions((*p_device)->p_dispatch);
-    d3d11_register_command_buffer_functions((*p_device)->p_dispatch);
-    d3d11_register_texture_functions((*p_device)->p_dispatch);
-    d3d11_register_fence_functions((*p_device)->p_dispatch);
-    d3d11_register_swapchain_functions((*p_device)->p_dispatch);
+    d3d11_register_device_functions(&(*p_device)->dispatch);
+    d3d11_register_command_pool_functions(&(*p_device)->dispatch);
+    d3d11_register_command_buffer_functions(&(*p_device)->dispatch);
+    d3d11_register_texture_functions(&(*p_device)->dispatch);
+    d3d11_register_fence_functions(&(*p_device)->dispatch);
+    d3d11_register_swapchain_functions(&(*p_device)->dispatch);
 
     // Release remaining not needed resources
     base_device->lpVtbl->Release(base_device);
@@ -167,9 +163,8 @@ static void d3d11_device_destroy(VriDevice device) {
 }
 
 static size_t get_device_size(void) {
-    return sizeof(struct VriDevice_T) +    // Base device size
-           sizeof(VriD3D11Device) +        // Internal backend size
-           sizeof(VriDeviceDispatchTable); // Size of the dispatch table (vtable)
+    return sizeof(struct VriDevice_T) + // Base device size
+           sizeof(VriD3D11Device);      // Internal backend size
 }
 
 static void d3d11_register_device_functions(VriDeviceDispatchTable *table) {
