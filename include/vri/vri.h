@@ -120,6 +120,7 @@ typedef enum {
     VRI_QUEUE_TYPE_GRAPHICS,
     VRI_QUEUE_TYPE_COMPUTE,
     VRI_QUEUE_TYPE_TRANSFER,
+    VRI_QUEUE_TYPE_PRESENT,
     VRI_QUEUE_TYPE_COUNT,
     VRI_QUEUE_TYPE_MAX_ENUM = 0x7FFFFFFF
 } VriQueueType;
@@ -147,6 +148,14 @@ typedef enum {
     VRI_COMMAND_BUFFER_STATE_PENDING = 4,
     VRI_COMMAND_BUFFER_STATE_MAX_ENUM = 0x7FFFFFFF
 } VriCommandBufferState;
+
+typedef enum {
+    VRI_QUEUE_FLAG_BIT_GRAPHICS = 1 << 0,
+    VRI_QUEUE_FLAG_BIT_COMPUTE = 1 << 1,
+    VRI_QUEUE_FLAG_BIT_TRANSFER = 1 << 2,
+    VRI_QUEUE_FLAG_BIT_PRESENT = 1 << 3
+} VriQueueFlagBits;
+typedef VriFlags VriQueueFlags;
 
 typedef enum {
     VRI_TEXTURE_USAGE_BIT_NONE = 0,
@@ -209,6 +218,17 @@ typedef struct {
 } VriAllocationCallback;
 
 typedef struct {
+    VriQueueType type;
+    uint32_t     count;
+    const float *priorities;
+} VriQueueDesc;
+
+typedef struct {
+    VriQueueFlags flags;
+    uint32_t      count;
+} VriQueueFamilyProps;
+
+typedef struct {
     uint64_t     luid;
     uint32_t     device_id;
     VriGpuVendor vendor;
@@ -216,14 +236,16 @@ typedef struct {
     uint64_t     vram;
     uint32_t     shared_system_memory;
     uint32_t     queue_count[VRI_QUEUE_TYPE_COUNT];
-} VriAdapterDesc;
+} VriAdapterProps;
 
 typedef struct {
-    VriBackend            backend;
-    VriAdapterDesc        adapter_desc;
-    VriDebugCallback      debug_callback;
-    VriAllocationCallback allocation_callback;
-    VriBool               enable_api_validation;
+    VriBackend             backend;
+    const VriAdapterProps *p_adapter_props;
+    const VriQueueDesc    *p_queue_descs;
+    uint32_t               queue_desc_count;
+    VriDebugCallback       debug_callback;
+    VriAllocationCallback  allocation_callback;
+    VriBool                enable_api_validation;
 } VriDeviceDesc;
 
 typedef struct {
@@ -272,6 +294,18 @@ typedef struct {
     VriCommandBufferUsage usage;
 } VriCommandBufferBeginDesc;
 
+typedef struct {
+    const VriCommandBuffer *p_command_buffers;
+    uint32_t                command_buffer_count;
+} VriQueueSubmitDesc;
+
+typedef struct {
+    const VriSwapchain *p_swapchains;
+    uint32_t            swapchain_count;
+    uint32_t           *p_image_indices;
+    VriResult          *p_results;
+} VriQueuePresentDesc;
+
 typedef void (*PFN_VriDeviceDestroy)(VriDevice device);
 typedef VriResult (*PFN_VriCommandPoolCreate)(VriDevice device, const VriCommandPoolDesc *p_desc, VriCommandPool *p_command_pool);
 typedef void (*PFN_VriCommandPoolDestroy)(VriDevice device, VriCommandPool command_pool);
@@ -288,8 +322,8 @@ typedef VriResult (*PFN_VriSwapchainAcquireNextImage)(VriDevice device, VriSwapc
 typedef VriResult (*PFN_VriSwapchainPresent)(VriDevice device, VriSwapchain swapchain, VriFence fence);
 
 VriResult vri_adapters_enumerate(
-    VriAdapterDesc *p_descs,
-    uint32_t       *p_desc_count);
+    VriAdapterProps *p_props,
+    uint32_t        *p_props_count);
 
 void vri_report_live_objects(
     void);
@@ -300,6 +334,12 @@ VriResult vri_device_create(
 
 void vri_device_destroy(
     VriDevice device);
+
+void vri_device_get_queue(
+    VriDevice    device,
+    VriQueueType queue_type,
+    uint32_t     queue_index,
+    VriQueue    *p_queue);
 
 VriResult vri_command_pool_create(
     VriDevice                 device,
@@ -378,8 +418,8 @@ VriResult vri_command_buffer_end(
 VriResult vri_command_buffer_reset(
     VriCommandBuffer command_buffer);
 
-typedef VriResult (*PFN_VriQueueSubmit)(VriQueue queue, const VriSubmitDesc *p_descs, uint32_t submit_count, VriFence fence);
-typedef VriResult (*PFN_VriQueuePresent)(VriQueue queue, const VriPresentDesc *p_desc);
+typedef VriResult (*PFN_VriQueueSubmit)(VriQueue queue, const VriQueueSubmitDesc *p_descs, uint32_t submit_count, VriFence fence);
+typedef VriResult (*PFN_VriQueuePresent)(VriQueue queue, const VriQueuePresentDesc *p_desc);
 
 #ifdef __cplusplus
 }

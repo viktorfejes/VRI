@@ -37,16 +37,16 @@ int main(void) {
         .pfn_message_callback = vri_logger,
     };
 
-    VriAdapterDesc adapter_descs[2];
-    uint32_t       adapter_desc_count = VRI_ARRAY_SIZE(adapter_descs);
-    if (vri_adapters_enumerate(adapter_descs, &adapter_desc_count) != VRI_SUCCESS) {
+    VriAdapterProps adapter_props[2];
+    uint32_t        adapter_props_count = VRI_ARRAY_SIZE(adapter_props);
+    if (vri_adapters_enumerate(adapter_props, &adapter_props_count) != VRI_SUCCESS) {
         printf("Couldn't enumerate adapters\n");
         return 1;
     }
 
     VriDeviceDesc device_desc = {
         .backend = VRI_BACKEND_D3D11,
-        .adapter_desc = adapter_descs[0],
+        .p_adapter_props = &adapter_props[0],
         .enable_api_validation = true,
         .debug_callback = vri_callback,
     };
@@ -59,12 +59,12 @@ int main(void) {
     // Verify what was created
     {
         printf("Device created\n");
-        printf("   luid: %lld\n", adapter_descs[0].luid);
-        printf("   device_id: %d\n", adapter_descs[0].device_id);
-        printf("   vendor: %s\n", adapter_descs[0].vendor == VRI_GPU_VENDOR_NVIDIA ? "Nvidia" : adapter_descs[0].vendor == VRI_GPU_VENDOR_AMD ? "AMD"
-                                                                                            : adapter_descs[0].vendor == VRI_GPU_VENDOR_INTEL ? "Intel"
+        printf("   luid: %lld\n", adapter_props[0].luid);
+        printf("   device_id: %d\n", adapter_props[0].device_id);
+        printf("   vendor: %s\n", adapter_props[0].vendor == VRI_GPU_VENDOR_NVIDIA ? "Nvidia" : adapter_props[0].vendor == VRI_GPU_VENDOR_AMD ? "AMD"
+                                                                                            : adapter_props[0].vendor == VRI_GPU_VENDOR_INTEL ? "Intel"
                                                                                                                                               : "Unknown");
-        printf("   vram: %llu MB\n", adapter_descs[0].vram / (1024 * 1024));
+        printf("   vram: %llu MB\n", adapter_props[0].vram / (1024 * 1024));
     }
 
     VriCommandBuffer cmd_buffers[2];

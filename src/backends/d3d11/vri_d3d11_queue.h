@@ -3,8 +3,7 @@
 
 #include "vri_d3d11_common.h"
 
-typedef struct {
-    ID3D11DeviceContext4 *p_immediate_context;
-} VriD3D11Queue;
+VriResult d3d11_queue_create(VriDevice device, VriQueue *p_queue);
+void      d3d11_queue_destroy(VriDevice device, VriQueue queue);
 
 #endif

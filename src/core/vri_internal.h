@@ -3,10 +3,13 @@
 
 #include "vri/vri.h"
 
+#define MAX_QUEUES_PER_TYPE 4
+
 typedef enum {
     VRI_OBJECT_DEVICE,
     VRI_OBJECT_COMMAND_POOL,
     VRI_OBJECT_COMMAND_BUFFER,
+    VRI_OBJECT_QUEUE,
     VRI_OBJECT_TEXTURE,
     VRI_OBJECT_FENCE,
     VRI_OBJECT_SWAPCHAIN,
@@ -51,7 +54,9 @@ struct VriDevice_T {
     VriBackend             backend;
     VriAllocationCallback  allocation_callback;
     VriDebugCallback       debug_callback;
-    VriAdapterDesc         adapter_desc;
+    VriAdapterProps        adapter_props;
+    VriQueue               queues[VRI_QUEUE_TYPE_COUNT][MAX_QUEUES_PER_TYPE];
+    uint32_t               queue_counts[VRI_QUEUE_TYPE_COUNT];
     void                  *p_backend_data;
 };
 

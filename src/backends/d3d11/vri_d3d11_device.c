@@ -4,19 +4,20 @@
 #include "vri_d3d11_command_pool.h"
 #include "vri_d3d11_device.h"
 #include "vri_d3d11_fence.h"
+#include "vri_d3d11_queue.h"
 #include "vri_d3d11_swapchain.h"
 #include "vri_d3d11_texture.h"
 
-static size_t get_device_size(void);
-static void   d3d11_register_device_functions(VriDeviceDispatchTable *table);
+#define DEVICE_STRUCT_SIZE (sizeof(struct VriDevice_T) + sizeof(VriD3D11Device))
+
+static void d3d11_register_device_functions(VriDeviceDispatchTable *table);
 
 VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) {
     // Convinience assignment for the debug messages
     VriDebugCallback dbg = p_desc->debug_callback;
 
     // Attempt to allocate the full internal struct
-    size_t device_size = get_device_size();
-    *p_device = vri_object_allocate(*p_device, &p_desc->allocation_callback, device_size, VRI_OBJECT_DEVICE);
+    *p_device = vri_object_allocate(*p_device, &p_desc->allocation_callback, DEVICE_STRUCT_SIZE, VRI_OBJECT_DEVICE);
     if (!*p_device) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_FATAL, "Allocation for device struct failed.");
         return VRI_ERROR_OUT_OF_MEMORY;
@@ -30,9 +31,9 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
     // TODO: Add fallback when we just want an adapter so luid == 0
     // In that case we can use NULL for the adapter and D3D_DRIVER_TYPE_HARDWARE
     {
-        VriAdapterDesc adapter_desc = p_desc->adapter_desc;
-        IDXGIFactory4 *dxgi_factory = NULL;
-        HRESULT        hr = CreateDXGIFactory2(p_desc->enable_api_validation ? D3D11_CREATE_DEVICE_DEBUG : 0, COM_IID_PPV_ARGS(IDXGIFactory4, &dxgi_factory));
+        const VriAdapterProps *adapter_props = p_desc->p_adapter_props;
+        IDXGIFactory4         *dxgi_factory = NULL;
+        HRESULT                hr = CreateDXGIFactory2(p_desc->enable_api_validation ? D3D11_CREATE_DEVICE_DEBUG : 0, COM_IID_PPV_ARGS(IDXGIFactory4, &dxgi_factory));
         if (FAILED(hr)) {
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_FATAL, "Failed to create DXGIFactory2 for adapter identification");
             return VRI_ERROR_SYSTEM_FAILURE;
@@ -40,8 +41,8 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
 
         // LUID luid = *(LUID *)&adapter_desc.luid;
         LUID luid = {
-            .LowPart = (DWORD)(adapter_desc.luid & 0xFFFFFFFF),
-            .HighPart = (LONG)(adapter_desc.luid >> 32),
+            .LowPart = (DWORD)(adapter_props->luid & 0xFFFFFFFF),
+            .HighPart = (LONG)(adapter_props->luid >> 32),
         };
         hr = dxgi_factory->lpVtbl->EnumAdapterByLuid(dxgi_factory, luid, COM_IID_PPV_ARGS(IDXGIAdapter, &internal_state->p_adapter));
         if (FAILED(hr)) {
@@ -74,7 +75,7 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
 
     if (FAILED(hr)) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_FATAL, "Failed to create D3D11 device. Check driver compatibility and installation.");
-        p_desc->allocation_callback.pfn_free(*p_device, device_size, 8);
+        p_desc->allocation_callback.pfn_free(*p_device, DEVICE_STRUCT_SIZE, 8);
         return VRI_ERROR_SYSTEM_FAILURE;
     }
 
@@ -83,7 +84,7 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
     hr = base_device->lpVtbl->QueryInterface(base_device, COM_IID_PPV_ARGS(ID3D11Device5, &device5));
     if (FAILED(hr)) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_FATAL, "Couldn't upgrade to ID3D11Device5. The system's D3D11 version is too old.");
-        p_desc->allocation_callback.pfn_free(*p_device, device_size, 8);
+        p_desc->allocation_callback.pfn_free(*p_device, DEVICE_STRUCT_SIZE, 8);
         base_device->lpVtbl->Release(base_device);
         base_context->lpVtbl->Release(base_context);
         return VRI_ERROR_UNSUPPORTED;
@@ -94,7 +95,7 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
     hr = base_context->lpVtbl->QueryInterface(base_context, COM_IID_PPV_ARGS(ID3D11DeviceContext4, &context4));
     if (FAILED(hr)) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_FATAL, "Couldn't upgrade to ID3D11DeviceContext4. The system's D3D11 version is too old.");
-        p_desc->allocation_callback.pfn_free(*p_device, device_size, 8);
+        p_desc->allocation_callback.pfn_free(*p_device, DEVICE_STRUCT_SIZE, 8);
         device5->lpVtbl->Release(device5);
         base_device->lpVtbl->Release(base_device);
         base_context->lpVtbl->Release(base_context);
@@ -123,6 +124,25 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
         } else {
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to get ID3D11InfoQueue for debug layer setup.");
         }
+    }
+
+    // Create queues
+    for (uint32_t i = 0; i < p_desc->queue_desc_count; ++i) {
+        const VriQueueDesc *qdesc = &p_desc->p_queue_descs[i];
+        VriQueueType        type = qdesc->type;
+
+        uint32_t qcount = qdesc->count;
+        for (uint32_t j = 0; j < qcount; ++j) {
+            VriQueue queue = NULL;
+            if (VRI_ERROR(d3d11_queue_create(*p_device, &queue))) {
+                dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create requested queue");
+                return VRI_ERROR_SYSTEM_FAILURE;
+            }
+
+            queue->type = type;
+            (*p_device)->queues[type][j] = queue;
+        }
+        (*p_device)->queue_counts[type] = qcount;
     }
 
     // Fill out the known fields
@@ -157,14 +177,8 @@ static void d3d11_device_destroy(VriDevice device) {
         }
 
         // Free the ENTIRE allocated block (device + internal_state)
-        size_t device_size = get_device_size();
-        device->allocation_callback.pfn_free(device, device_size, 8);
+        device->allocation_callback.pfn_free(device, DEVICE_STRUCT_SIZE, 8);
     }
-}
-
-static size_t get_device_size(void) {
-    return sizeof(struct VriDevice_T) + // Base device size
-           sizeof(VriD3D11Device);      // Internal backend size
 }
 
 static void d3d11_register_device_functions(VriDeviceDispatchTable *table) {

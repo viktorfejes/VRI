@@ -1,3 +1,4 @@
+#include "vri/vri.h"
 #include "vri_internal.h"
 
 #include <string.h>
@@ -59,7 +60,7 @@ void *vri_object_allocate(VriDevice device, const VriAllocationCallback *alloc, 
 }
 
 #if (VRI_ENABLE_D3D11_SUPPORT || VRI_ENABLE_D3D12_SUPPORT)
-static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_count) {
+static VriResult d3d_enum_adapters(VriAdapterProps *p_descs, uint32_t *p_desc_count) {
     IDXGIFactory4 *dxgi_factory = NULL;
     HRESULT        hr = CreateDXGIFactory2(0, IID_PPV_ARGS_C(IDXGIFactory4, &dxgi_factory));
     if (FAILED(hr)) {
@@ -93,14 +94,14 @@ static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_cou
         return VRI_ERROR_SYSTEM_FAILURE;
     }
 
-    VriAdapterDesc queried_adapter_descs[ADAPTER_MAX_COUNT];
-    uint32_t       validated_adapter_count = 0;
+    VriAdapterProps queried_adapter_descs[ADAPTER_MAX_COUNT];
+    uint32_t        validated_adapter_count = 0;
 
     for (uint32_t i = 0; i < adapter_count; ++i) {
         DXGI_ADAPTER_DESC desc = {0};
         adapters[i]->lpVtbl->GetDesc(adapters[i], &desc);
 
-        VriAdapterDesc *adapter_desc = &queried_adapter_descs[validated_adapter_count];
+        VriAdapterProps *adapter_desc = &queried_adapter_descs[validated_adapter_count];
         adapter_desc->luid = *(uint64_t *)&desc.AdapterLuid;
         adapter_desc->device_id = desc.DeviceId;
         adapter_desc->vendor = get_vendor_from_id(desc.VendorId);
@@ -108,9 +109,10 @@ static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_cou
         adapter_desc->shared_system_memory = desc.SharedSystemMemory;
 
         // Since queue count cannot be queried in D3D, we'll use some defaults
-        adapter_desc->queue_count[VRI_QUEUE_TYPE_GRAPHICS] = 3;
-        adapter_desc->queue_count[VRI_QUEUE_TYPE_COMPUTE] = 3;
-        adapter_desc->queue_count[VRI_QUEUE_TYPE_TRANSFER] = 3;
+        adapter_desc->queue_count[VRI_QUEUE_TYPE_GRAPHICS] = 1;
+        adapter_desc->queue_count[VRI_QUEUE_TYPE_COMPUTE] = 1;
+        adapter_desc->queue_count[VRI_QUEUE_TYPE_TRANSFER] = 1;
+        adapter_desc->queue_count[VRI_QUEUE_TYPE_PRESENT] = 1;
 
         // Get the GPU type by creating a device, at the same time test IF we can create a device
         D3D_FEATURE_LEVEL fl[2] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
@@ -159,7 +161,7 @@ static VriResult d3d_enum_adapters(VriAdapterDesc *p_descs, uint32_t *p_desc_cou
 }
 #endif
 
-VriResult vri_adapters_enumerate(VriAdapterDesc *p_descs, uint32_t *p_desc_count) {
+VriResult vri_adapters_enumerate(VriAdapterProps *p_descs, uint32_t *p_desc_count) {
     VriResult result = VRI_ERROR_SYSTEM_FAILURE;
 
 #if VRI_ENABLE_VK_SUPPORT
@@ -228,6 +230,15 @@ VriResult vri_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) {
     finish_device_creation(&mod_desc, p_device);
 
     return VRI_SUCCESS;
+}
+
+void vri_device_get_queue(VriDevice device, VriQueueType queue_type, uint32_t queue_index, VriQueue *p_queue) {
+    if (device) {
+        if (queue_type >= VRI_QUEUE_TYPE_COUNT) return;
+        if (queue_index >= device->queue_counts[queue_type]) return;
+
+        *p_queue = device->queues[queue_type][queue_index];
+    }
 }
 
 // Calling Device table
@@ -314,8 +325,8 @@ static VriGpuVendor get_vendor_from_id(uint32_t vendor_id) {
 }
 
 static int sort_adapters(const void *a, const void *b) {
-    const VriAdapterDesc *adapter_a = (const VriAdapterDesc *)a;
-    const VriAdapterDesc *adapter_b = (const VriAdapterDesc *)b;
+    const VriAdapterProps *adapter_a = (const VriAdapterProps *)a;
+    const VriAdapterProps *adapter_b = (const VriAdapterProps *)b;
 
     // Priority order: [type:4][vram:56][vendor:4]
     uint64_t type_a = (adapter_a->type == VRI_GPU_TYPE_DISCRETE) ? 1 : 0;
@@ -347,7 +358,7 @@ static void setup_callbacks(VriDeviceDesc *p_desc) {
 static void finish_device_creation(VriDeviceDesc *p_desc, VriDevice *p_device) {
     (*p_device)->allocation_callback = p_desc->allocation_callback;
     (*p_device)->debug_callback = p_desc->debug_callback;
-    (*p_device)->adapter_desc = p_desc->adapter_desc;
+    (*p_device)->adapter_props = *p_desc->p_adapter_props;
 }
 
 static void *default_allocator_allocate(size_t size, size_t alignment) {
