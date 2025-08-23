@@ -195,6 +195,14 @@ typedef enum {
 } VriCommandBufferUsageBits;
 typedef VriFlags VriCommandBufferUsage;
 
+typedef enum {
+    VRI_FENCE_USAGE_BIT_NONE = 0,
+    VRI_FENCE_USAGE_BIT_CPU_WAIT = 1 << 0,
+    VRI_FENCE_USAGE_BIT_GPU_WAIT = 1 << 1,
+    VRI_FENCE_USAGE_BIT_TIMELINE = 1 << 2
+} VriFenceUsageBits;
+typedef VriFlags VriFenceUsage;
+
 typedef void (*PFN_VriMessageCallback)(
     VriMessageSeverity severity,
     const char        *p_message);
@@ -316,6 +324,8 @@ typedef VriResult (*PFN_VriTextureCreate)(VriDevice device, const VriTextureDesc
 typedef void (*PFN_VriTextureDestroy)(VriDevice device, VriTexture texture);
 typedef VriResult (*PFN_VriFenceCreate)(VriDevice device, uint64_t initial_value, VriFence *p_fence);
 typedef void (*PFN_VriFenceDestroy)(VriDevice device, VriFence fence);
+typedef uint64_t (*PFN_VriFenceGetValue)(VriDevice device, VriFence fence);
+typedef VriResult (*PFN_VriFencesWait)(VriDevice device, const VriFence *p_fences, const uint64_t *p_values, uint32_t fence_count, VriBool wait_all, uint64_t timeout_ns);
 typedef VriResult (*PFN_VriSwapchainCreate)(VriDevice device, const VriSwapchainDesc *p_desc, VriSwapchain *p_swapchain);
 typedef void (*PFN_VriSwapchainDestroy)(VriDevice device, VriSwapchain swapchain);
 typedef VriResult (*PFN_VriSwapchainAcquireNextImage)(VriDevice device, VriSwapchain swapchain, VriFence fence, uint32_t *p_image_index);
@@ -384,6 +394,18 @@ void vri_fence_destroy(
     VriDevice device,
     VriFence  fence);
 
+uint64_t vri_fence_get_value(
+    VriDevice device,
+    VriFence  fence);
+
+VriResult vri_fences_wait(
+    VriDevice device,
+    VriFence *p_fences,
+    uint64_t *p_values,
+    uint32_t  fence_count,
+    VriBool   wait_all,
+    uint64_t  timeout_ns);
+
 VriResult vri_swapchain_create(
     VriDevice               device,
     const VriSwapchainDesc *p_desc,
@@ -418,8 +440,22 @@ VriResult vri_command_buffer_end(
 VriResult vri_command_buffer_reset(
     VriCommandBuffer command_buffer);
 
-typedef VriResult (*PFN_VriQueueSubmit)(VriQueue queue, const VriQueueSubmitDesc *p_descs, uint32_t submit_count, VriFence fence);
-typedef VriResult (*PFN_VriQueuePresent)(VriQueue queue, const VriQueuePresentDesc *p_desc);
+typedef VriResult (*PFN_VriQueueSubmit)(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count, VriFence fence);
+typedef VriResult (*PFN_VriQueueWaitIdle)(VriQueue queue);
+typedef VriResult (*PFN_VriQueuePresent)(VriQueue queue, const VriQueuePresentDesc *p_present);
+
+VriResult vri_queue_submit(
+    VriQueue                  queue,
+    const VriQueueSubmitDesc *p_submits,
+    uint32_t                  submit_count,
+    VriFence                  fence);
+
+VriResult vri_queue_wait_idle(
+    VriQueue queue);
+
+VriResult vri_queue_present(
+    VriQueue                   queue,
+    const VriQueuePresentDesc *p_present);
 
 #ifdef __cplusplus
 }

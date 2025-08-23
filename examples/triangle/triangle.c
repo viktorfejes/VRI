@@ -16,6 +16,7 @@ typedef struct window {
 static VriDevice      device;
 static VriCommandPool cmd_pool;
 static VriFence       image_available_fence;
+static VriQueue       graphics_queue;
 
 static uint8_t           current_frame = 0;
 static platform_state_t *platform_state = NULL;
@@ -44,9 +45,16 @@ int main(void) {
         return 1;
     }
 
+    VriQueueDesc qdescs[2] = {
+        {.type = VRI_QUEUE_TYPE_GRAPHICS, .count = 1},
+        {.type = VRI_QUEUE_TYPE_COMPUTE, .count = 1},
+    };
+
     VriDeviceDesc device_desc = {
         .backend = VRI_BACKEND_D3D11,
         .p_adapter_props = &adapter_props[0],
+        .p_queue_descs = qdescs,
+        .queue_desc_count = VRI_ARRAY_SIZE(qdescs),
         .enable_api_validation = true,
         .debug_callback = vri_callback,
     };
@@ -67,6 +75,12 @@ int main(void) {
         printf("   vram: %llu MB\n", adapter_props[0].vram / (1024 * 1024));
     }
 
+    vri_device_get_queue(device, VRI_QUEUE_TYPE_GRAPHICS, 0, &graphics_queue);
+    if (!graphics_queue) {
+        printf("Couldn't get needed queue\n");
+        return 1;
+    }
+
     VriCommandBuffer cmd_buffers[2];
     VriFence         frame_fences[2];
 
@@ -81,7 +95,7 @@ int main(void) {
         }
 
         for (int i = 0; i < MAX_CONCURRENT_FRAMES; ++i) {
-            vri_fence_create(device, 1, &frame_fences[i]);
+            vri_fence_create(device, 1, VRI_FENCE_USAGE_BIT_CPU_WAIT, &frame_fences[i]);
         }
     }
 
@@ -122,7 +136,7 @@ int main(void) {
     };
     vri_swapchain_create(device, &swapchain_desc, &window.swapchain);
 
-    if (vri_fence_create(device, 1, &image_available_fence) != VRI_SUCCESS) {
+    if (vri_fence_create(device, 1, VRI_FENCE_USAGE_BIT_GPU_WAIT, &image_available_fence) != VRI_SUCCESS) {
         printf("Couldn't create image available fence");
         return 1;
     }

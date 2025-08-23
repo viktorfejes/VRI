@@ -6,7 +6,6 @@
 typedef struct {
     ID3D11Fence *p_fence;
     HANDLE       event;
-    uint64_t     value;
 } VriD3D11Fence;
 
 void d3d11_register_fence_functions(VriDeviceDispatchTable *table);

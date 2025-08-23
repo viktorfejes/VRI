@@ -3,12 +3,13 @@
 #include "vri/vri.h"
 #include "vri_d3d11_device.h"
 
+#define COMMAND_BUFFER_OBJECT_SIZE (sizeof(struct VriCommandBuffer_T) + sizeof(VriD3D11CommandBuffer))
+
 static VriResult d3d11_command_buffers_allocate(VriDevice device, const VriCommandBufferAllocateDesc *p_desc, VriCommandBuffer *p_command_buffers);
 static void      d3d11_command_buffers_free(VriDevice device, VriCommandPool command_pool, uint32_t command_buffer_count, const VriCommandBuffer *p_command_buffers);
 static VriResult d3d11_command_buffer_begin(VriCommandBuffer command_buffer, const VriCommandBufferBeginDesc *p_desc);
 static VriResult d3d11_command_buffer_end(VriCommandBuffer command_buffer);
 static VriResult d3d11_command_buffer_reset(VriCommandBuffer command_buffer);
-static size_t    get_command_buffer_size(void);
 
 void d3d11_register_command_buffer_functions(VriDeviceDispatchTable *table) {
     table->pfn_command_buffers_allocate = d3d11_command_buffers_allocate;
@@ -19,7 +20,7 @@ static VriResult d3d11_command_buffers_allocate(VriDevice device, const VriComma
     VriDebugCallback dbg = device->debug_callback;
 
     for (uint32_t i = 0; i < p_desc->command_buffer_count; ++i) {
-        VriCommandBuffer cmd = vri_object_allocate(device, &device->allocation_callback, get_command_buffer_size(), VRI_OBJECT_COMMAND_BUFFER);
+        VriCommandBuffer cmd = vri_object_allocate(device, &device->allocation_callback, COMMAND_BUFFER_OBJECT_SIZE, VRI_OBJECT_COMMAND_BUFFER);
         if (!cmd) return VRI_ERROR_OUT_OF_MEMORY;
         cmd->p_backend_data = (VriD3D11CommandBuffer *)(cmd + 1);
 
@@ -64,7 +65,7 @@ static void d3d11_command_buffers_free(VriDevice device, VriCommandPool command_
         COM_SAFE_RELEASE(impl->p_deferred_context);
         COM_SAFE_RELEASE(impl->p_command_list);
 
-        device->allocation_callback.pfn_free(p_command_buffers[i], get_command_buffer_size(), 8);
+        device->allocation_callback.pfn_free(p_command_buffers[i], COMMAND_BUFFER_OBJECT_SIZE, 8);
     }
 }
 
@@ -101,9 +102,4 @@ static VriResult d3d11_command_buffer_reset(VriCommandBuffer command_buffer) {
     command_buffer->state = VRI_COMMAND_BUFFER_STATE_INITIAL;
 
     return VRI_SUCCESS;
-}
-
-static size_t get_command_buffer_size(void) {
-    return sizeof(struct VriCommandBuffer_T) + // Base device size
-           sizeof(VriD3D11CommandBuffer);      // Internal backend size
 }

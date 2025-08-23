@@ -31,6 +31,8 @@ typedef struct {
     PFN_VriTextureDestroy            pfn_texture_destroy;
     PFN_VriFenceCreate               pfn_fence_create;
     PFN_VriFenceDestroy              pfn_fence_destroy;
+    PFN_VriFenceGetValue             pfn_fence_get_value;
+    PFN_VriFencesWait                pfn_fences_wait;
     PFN_VriSwapchainCreate           pfn_swapchain_create;
     PFN_VriSwapchainDestroy          pfn_swapchain_destroy;
     PFN_VriSwapchainAcquireNextImage pfn_swapchain_acquire_next_image;
@@ -44,8 +46,9 @@ typedef struct {
 } VriCommandBufferDispatchTable;
 
 typedef struct {
-    PFN_VriQueueSubmit  pfn_queue_submit;
-    PFN_VriQueuePresent pfn_queue_present;
+    PFN_VriQueueSubmit   pfn_queue_submit;
+    PFN_VriQueueWaitIdle pfn_queue_wait_idle;
+    PFN_VriQueuePresent  pfn_queue_present;
 } VriQueueDispatchTable;
 
 struct VriDevice_T {

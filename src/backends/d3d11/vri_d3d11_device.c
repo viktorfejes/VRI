@@ -120,7 +120,7 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
             info_queue->lpVtbl->SetMessageCountLimit(info_queue, 1024);
 
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_INFO, "D3D11 debug layer enabled for logging");
-            info_queue->lpVtbl->Release(info_queue);
+            COM_RELEASE(info_queue);
         } else {
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to get ID3D11InfoQueue for debug layer setup.");
         }
@@ -134,7 +134,7 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
         uint32_t qcount = qdesc->count;
         for (uint32_t j = 0; j < qcount; ++j) {
             VriQueue queue = NULL;
-            if (VRI_ERROR(d3d11_queue_create(*p_device, &queue))) {
+            if (VRI_ERROR(d3d11_queue_create(*p_device, &p_desc->allocation_callback, &queue))) {
                 dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create requested queue");
                 return VRI_ERROR_SYSTEM_FAILURE;
             }
@@ -159,8 +159,8 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
     d3d11_register_swapchain_functions(&(*p_device)->dispatch);
 
     // Release remaining not needed resources
-    base_device->lpVtbl->Release(base_device);
-    base_context->lpVtbl->Release(base_context);
+    COM_RELEASE(base_device);
+    COM_RELEASE(base_context);
 
     return VRI_SUCCESS;
 }
@@ -168,6 +168,14 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
 static void d3d11_device_destroy(VriDevice device) {
     if (device) {
         VriD3D11Device *internal_state = (VriD3D11Device *)device->p_backend_data;
+
+        // TODO: Release all queues
+        for (uint32_t i = 0; i < VRI_QUEUE_TYPE_COUNT; ++i) {
+            uint32_t type_count = device->queue_counts[i];
+            for (uint32_t j = 0; j < type_count; ++j) {
+                d3d11_queue_destroy(device, device->queues[i][j]);
+            }
+        }
 
         if (internal_state) {
             // Release the GPU resources

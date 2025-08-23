@@ -282,6 +282,14 @@ void vri_fence_destroy(VriDevice device, VriFence fence) {
     device->dispatch.pfn_fence_destroy(device, fence);
 }
 
+uint64_t vri_fence_get_value(VriDevice device, VriFence fence) {
+    return device->dispatch.pfn_fence_get_value(device, fence);
+}
+
+VriResult vri_fences_wait(VriDevice device, VriFence *p_fences, uint64_t *p_values, uint32_t fence_count, VriBool wait_all, uint64_t timeout_ns) {
+    return device->dispatch.pfn_fences_wait(device, p_fences, p_values, fence_count, wait_all, timeout_ns);
+}
+
 VriResult vri_swapchain_create(VriDevice device, const VriSwapchainDesc *p_desc, VriSwapchain *p_swapchain) {
     return device->dispatch.pfn_swapchain_create(device, p_desc, p_swapchain);
 }
@@ -309,6 +317,18 @@ VriResult vri_command_buffer_end(VriCommandBuffer command_buffer) {
 
 VriResult vri_command_buffer_reset(VriCommandBuffer command_buffer) {
     return command_buffer->dispatch.pfn_command_buffer_reset(command_buffer);
+}
+
+VriResult vri_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count, VriFence fence) {
+    return queue->dispatch.pfn_queue_submit(queue, p_submits, submit_count, fence);
+}
+
+VriResult vri_queue_wait_idle(VriQueue queue) {
+    return queue->dispatch.pfn_queue_wait_idle(queue);
+}
+
+VriResult vri_queue_present(VriQueue queue, const VriQueuePresentDesc *p_present) {
+    return queue->dispatch.pfn_queue_present(queue, p_present);
 }
 
 static VriGpuVendor get_vendor_from_id(uint32_t vendor_id) {
