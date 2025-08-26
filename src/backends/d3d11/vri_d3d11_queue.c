@@ -7,7 +7,7 @@
 
 #define QUEUE_STRUCT_SIZE (sizeof(struct VriQueue_T))
 
-static VriResult d3d11_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count, VriFence fence);
+static VriResult d3d11_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count);
 static VriResult d3d11_queue_present(VriQueue queue, const VriQueuePresentDesc *p_present_desc);
 
 VriResult d3d11_queue_create(VriDevice device, const VriAllocationCallback *allocation_callback, VriQueue *p_queue) {
@@ -34,7 +34,7 @@ void d3d11_queue_destroy(VriDevice device, VriQueue queue) {
     }
 }
 
-static VriResult d3d11_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count, VriFence fence) {
+static VriResult d3d11_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count) {
     // For the d3d11 backend we need to fetch the immediate context from
     // the parent device as the VriQueue type is just an empty wrapper
     VriD3D11Device       *pd = (VriD3D11Device *)(queue->base.p_device->p_backend_data);
@@ -68,13 +68,6 @@ static VriResult d3d11_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_
             uint64_t       signal_value = submit->p_fences_signal[j].value;
             immediate_ctx->lpVtbl->Signal(immediate_ctx, signal_fence->p_fence, signal_value);
         }
-    }
-
-    // --- FINAL SIGNAL (Optional) ---
-    if (fence != NULL) {
-        VriD3D11Fence *final_fence = fence->p_backend_data;
-        uint64_t       final_value = 1;
-        immediate_ctx->lpVtbl->Signal(immediate_ctx, final_fence->p_fence, final_value);
     }
 
     return VRI_SUCCESS;
@@ -112,18 +105,6 @@ static VriResult d3d11_queue_present(VriQueue queue, const VriQueuePresentDesc *
         // Update overall results with error priority
         if (present_result != VRI_SUCCESS && overall_result == VRI_SUCCESS) {
             overall_result = present_result;
-        }
-    }
-
-    // Signal timeline fences after present
-    uint32_t signal_count = VRI_MIN(p_present_desc->signal_fence_count, p_present_desc->swapchain_count);
-    for (uint32_t i = 0; i < signal_count; ++i) {
-        VriFence fence = p_present_desc->p_signal_fences[i];
-        uint64_t signal_value = p_present_desc->p_signal_values[i];
-
-        VriResult signal_result = d3d11_fence_signal(fence, signal_value);
-        if (signal_result != VRI_SUCCESS && overall_result == VRI_SUCCESS) {
-            overall_result = signal_result;
         }
     }
 

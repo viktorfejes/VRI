@@ -1,13 +1,14 @@
 #include "vri_d3d11_swapchain.h"
 
 #include "vri_d3d11_device.h"
+#include "vri_d3d11_fence.h"
 #include "vri_d3d11_texture.h"
 
 #define SWAPCHAIN_STRUCT_SIZE (sizeof(struct VriSwapchain_T) + sizeof(VriD3D11Swapchain))
 
 static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_desc, VriSwapchain *p_swapchain);
 static void      swapchain_destroy(VriDevice device, VriSwapchain swapchain);
-static VriResult swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint32_t *p_image_index);
+static VriResult swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint64_t signal_value, uint32_t *p_image_index);
 
 void d3d11_register_swapchain_functions(VriDeviceDispatchTable *table) {
     table->pfn_swapchain_create = swapchain_create;
@@ -184,13 +185,19 @@ static void swapchain_destroy(VriDevice device, VriSwapchain swapchain) {
     }
 }
 
-static VriResult swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint32_t *p_image_index) {
+static VriResult swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint64_t signal_value, uint32_t *p_image_index) {
     (void)device;
     (void)swapchain;
     (void)fence;
 
     // Always 0 for D3D11 as we only have a single image that we are allowed to touch
     *p_image_index = 0;
+
+    // If a fence was provided, bump it immediately
+    if (fence != VRI_NULL_HANDLE) {
+        d3d11_fence_signal(fence, signal_value);
+    }
+
     return VRI_SUCCESS;
 }
 

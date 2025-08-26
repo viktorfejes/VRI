@@ -15,8 +15,6 @@ typedef struct window {
 
 static VriDevice      device;
 static VriCommandPool cmd_pool;
-static VriFence       image_available_fence;
-static VriQueue       graphics_queue;
 
 static uint8_t           current_frame = 0;
 static platform_state_t *platform_state = NULL;
@@ -75,14 +73,16 @@ int main(void) {
         printf("   vram: %llu MB\n", adapter_props[0].vram / (1024 * 1024));
     }
 
+    VriCommandBuffer cmd_buffers[2];
+    VriFence         frame_fence;
+    VriFence         image_available_fence;
+    VriQueue         graphics_queue;
+
     vri_device_get_queue(device, VRI_QUEUE_TYPE_GRAPHICS, 0, &graphics_queue);
     if (!graphics_queue) {
         printf("Couldn't get needed queue\n");
         return 1;
     }
-
-    VriCommandBuffer cmd_buffers[2];
-    VriFence         frame_fences[2];
 
     {
         VriCommandBufferAllocateDesc desc = {
@@ -94,8 +94,9 @@ int main(void) {
             return 1;
         }
 
-        for (int i = 0; i < MAX_CONCURRENT_FRAMES; ++i) {
-            vri_fence_create(device, 1, &frame_fences[i]);
+        if (VRI_ERROR(vri_fence_create(device, 1, &frame_fence))) {
+            printf("Couldn't create frame fence\n");
+            return 1;
         }
     }
 
@@ -152,33 +153,95 @@ int main(void) {
         }
     }
 
+    uint64_t frame_number = 0;
+    uint64_t frame_complete_counter = 0;
+    uint64_t image_acquire_counter = 0;
+
     while (!platform_window_should_close(window.platform)) {
         platform_process_messages();
 
-        uint32_t image_index = 0;
-        vri_swapchain_acquire_next_image(device, window.swapchain, image_available_fence, &image_index);
+        // Limit frames in flight
+        if (frame_number >= MAX_CONCURRENT_FRAMES) {
+            uint64_t wait_value = frame_number - MAX_CONCURRENT_FRAMES + 1;
 
-        vri_command_buffer_reset(cmd_buffers[current_frame]);
+            VriFence wait_fences[] = {frame_fence};
+            uint64_t wait_values[] = {wait_value};
+
+            VriResult wait_result = vri_fences_wait(device, wait_fences, wait_values, 1, true, UINT64_MAX);
+            if (VRI_ERROR(wait_result)) {
+                printf("Failed to wait for frame fence\n");
+                break;
+            }
+        }
+
+        uint32_t image_index = 0;
+        uint64_t acquire_value = ++image_acquire_counter;
+        if (VRI_ERROR(vri_swapchain_acquire_next_image(device, window.swapchain, image_available_fence, acquire_value, &image_index))) {
+            printf("Failed to acquire next image\n");
+            break;
+        }
+
+        const VriCommandBuffer command_buffer = cmd_buffers[current_frame];
+        vri_command_buffer_reset(command_buffer);
+
         VriCommandBufferBeginDesc cmd_buf_desc = {0};
-        const VriCommandBuffer    command_buffer = cmd_buffers[current_frame];
         if (VRI_ERROR(vri_command_buffer_begin(command_buffer, &cmd_buf_desc))) {
             printf("Command Buffer Begin Error\n");
         }
+
+        // TODO: Record, render, draw...etc
 
         if (VRI_ERROR(vri_command_buffer_end(command_buffer))) {
             printf("Command Buffer End Error\n");
         }
 
-        vri_swapchain_present(device, window.swapchain, 0);
+        uint64_t submit_signal_value = ++frame_complete_counter;
+
+        VriFenceWaitDesc wait_desc = {
+            .fence = image_available_fence,
+            .value = acquire_value,
+        };
+        VriFenceSignalDesc signal_desc = {
+            .fence = frame_fence,
+            .value = submit_signal_value,
+        };
+
+        VriQueueSubmitDesc submit_desc = {
+            .command_buffer_count = 1,
+            .p_command_buffers = &command_buffer,
+            .fence_wait_count = 1,
+            .p_fences_wait = &wait_desc,
+            .fence_signal_count = 1,
+            .p_fences_signal = &signal_desc,
+        };
+
+        if (VRI_ERROR(vri_queue_submit(graphics_queue, &submit_desc, 1))) {
+            printf("Failed to submit command buffer\n");
+            break;
+        }
+
+        // Present
+        VriQueuePresentDesc present_desc = {
+            .swapchain_count = 1,
+            .p_swapchains = &window.swapchain,
+            .p_image_indices = &image_index,
+            .wait_fence_count = 1,
+            .p_wait_fences = &frame_fence,
+            .p_wait_values = &submit_signal_value,
+        };
+
+        if (VRI_ERROR(vri_queue_present(graphics_queue, &present_desc))) {
+            printf("Failed to present\n");
+            break;
+        }
 
         // Select next frame to render
         current_frame = (current_frame + 1) % MAX_CONCURRENT_FRAMES;
+        frame_number++;
     }
 
     // Clean-up
-    for (int i = 0; i < MAX_CONCURRENT_FRAMES; ++i) {
-        vri_fence_destroy(device, frame_fences[i]);
-    }
+    vri_fence_destroy(device, frame_fence);
     vri_command_buffers_free(device, cmd_pool, 2, cmd_buffers);
     vri_command_pool_destroy(device, cmd_pool);
     vri_fence_destroy(device, image_available_fence);

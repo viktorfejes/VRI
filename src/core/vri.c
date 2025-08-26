@@ -298,8 +298,8 @@ void vri_swapchain_destroy(VriDevice device, VriSwapchain swapchain) {
     device->dispatch.pfn_swapchain_destroy(device, swapchain);
 }
 
-VriResult vri_swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint32_t *p_image_index) {
-    return device->dispatch.pfn_swapchain_acquire_next_image(device, swapchain, fence, p_image_index);
+VriResult vri_swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint64_t signal_value, uint32_t *p_image_index) {
+    return device->dispatch.pfn_swapchain_acquire_next_image(device, swapchain, fence, signal_value, p_image_index);
 }
 
 VriResult vri_swapchain_present(VriDevice device, VriSwapchain swapchain, VriFence fence) {
@@ -319,8 +319,8 @@ VriResult vri_command_buffer_reset(VriCommandBuffer command_buffer) {
     return command_buffer->dispatch.pfn_command_buffer_reset(command_buffer);
 }
 
-VriResult vri_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count, VriFence fence) {
-    return queue->dispatch.pfn_queue_submit(queue, p_submits, submit_count, fence);
+VriResult vri_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count) {
+    return queue->dispatch.pfn_queue_submit(queue, p_submits, submit_count);
 }
 
 VriResult vri_queue_wait_idle(VriQueue queue) {
