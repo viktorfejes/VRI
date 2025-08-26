@@ -95,7 +95,7 @@ int main(void) {
         }
 
         for (int i = 0; i < MAX_CONCURRENT_FRAMES; ++i) {
-            vri_fence_create(device, 1, VRI_FENCE_USAGE_BIT_CPU_WAIT, &frame_fences[i]);
+            vri_fence_create(device, 1, &frame_fences[i]);
         }
     }
 
@@ -136,7 +136,7 @@ int main(void) {
     };
     vri_swapchain_create(device, &swapchain_desc, &window.swapchain);
 
-    if (vri_fence_create(device, 1, VRI_FENCE_USAGE_BIT_GPU_WAIT, &image_available_fence) != VRI_SUCCESS) {
+    if (vri_fence_create(device, 1, &image_available_fence) != VRI_SUCCESS) {
         printf("Couldn't create image available fence");
         return 1;
     }

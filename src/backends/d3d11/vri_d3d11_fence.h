@@ -8,6 +8,8 @@ typedef struct {
     HANDLE       event;
 } VriD3D11Fence;
 
-void d3d11_register_fence_functions(VriDeviceDispatchTable *table);
+void      d3d11_register_fence_functions(VriDeviceDispatchTable *table);
+VriResult d3d11_fences_wait(VriDevice device, const VriFence *p_fences, const uint64_t *p_values, uint32_t fence_count, VriBool wait_all, uint64_t timeout_ns);
+VriResult d3d11_fence_signal(VriFence fence, uint64_t value);
 
 #endif

@@ -54,6 +54,7 @@ typedef enum {
     VRI_SUCCESS = 0,
     VRI_INCOMPLETE = 1,
     VRI_SUBOPTIMAL = 2,
+    VRI_TIMEOUT = 3,
     VRI_RESULT_MAX_ENUM = 0x7FFFFFFF
 } VriResult;
 #define VRI_OK(result)    ((result) >= VRI_SUCCESS)
@@ -303,15 +304,31 @@ typedef struct {
 } VriCommandBufferBeginDesc;
 
 typedef struct {
-    const VriCommandBuffer *p_command_buffers;
-    uint32_t                command_buffer_count;
+    VriFence fence;
+    uint64_t value;
+} VriFenceWaitDesc;
+typedef VriFenceWaitDesc VriFenceSignalDesc;
+
+typedef struct {
+    const VriCommandBuffer   *p_command_buffers;
+    uint32_t                  command_buffer_count;
+    const VriFenceWaitDesc   *p_fences_wait;
+    uint32_t                  fence_wait_count;
+    const VriFenceSignalDesc *p_fences_signal;
+    uint32_t                  fence_signal_count;
 } VriQueueSubmitDesc;
 
 typedef struct {
     const VriSwapchain *p_swapchains;
     uint32_t            swapchain_count;
-    uint32_t           *p_image_indices;
-    VriResult          *p_results;
+    uint32_t           *p_image_indices; // Which image in the swapchain to present
+    VriFence           *p_wait_fences;
+    uint64_t           *p_wait_values; // Timeline values to wait for
+    uint32_t            wait_fence_count;
+    VriFence           *p_signal_fences;
+    uint64_t           *p_signal_values; // Timeline values to signal
+    uint32_t            signal_fence_count;
+    VriResult          *p_results; // Per-swapchain results (can be NULL)
 } VriQueuePresentDesc;
 
 typedef void (*PFN_VriDeviceDestroy)(VriDevice device);

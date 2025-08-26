@@ -13,6 +13,7 @@ typedef struct {
     VriTexture       texture;
 } VriD3D11Swapchain;
 
-void d3d11_register_swapchain_functions(VriDeviceDispatchTable *table);
+void      d3d11_register_swapchain_functions(VriDeviceDispatchTable *table);
+VriResult d3d11_swapchain_present(VriSwapchain swapchain, uint32_t image_index);
 
 #endif

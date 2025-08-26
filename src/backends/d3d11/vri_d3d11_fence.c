@@ -1,5 +1,6 @@
 #include "vri_d3d11_fence.h"
 
+#include "vri/vri.h"
 #include "vri_d3d11_device.h"
 
 #define FENCE_OBJECT_SIZE (sizeof(struct VriFence_T) + sizeof(VriD3D11Fence))
@@ -7,7 +8,6 @@
 static VriResult d3d11_fence_create(VriDevice device, uint64_t initial_value, VriFence *p_fence);
 static void      d3d11_fence_destroy(VriDevice device, VriFence fence);
 static uint64_t  d3d11_fence_get_value(VriDevice device, VriFence fence);
-static VriResult d3d11_fences_wait(VriDevice device, const VriFence *p_fences, const uint64_t *p_values, uint32_t fence_count, VriBool wait_all, uint64_t timeout_ns);
 
 void d3d11_register_fence_functions(VriDeviceDispatchTable *table) {
     table->pfn_fence_create = d3d11_fence_create;
@@ -73,60 +73,64 @@ static uint64_t d3d11_fence_get_value(VriDevice device, VriFence fence) {
     return f->p_fence->lpVtbl->GetCompletedValue(f->p_fence);
 }
 
-static VriResult d3d11_fences_wait(VriDevice device, const VriFence *p_fences, const uint64_t *p_values, uint32_t fence_count, VriBool wait_all, uint64_t timeout_ns) {
+VriResult d3d11_fences_wait(VriDevice device, const VriFence *p_fences, const uint64_t *p_values, uint32_t fence_count, VriBool wait_all, uint64_t timeout_ns) {
     (void)device;
-    DWORD timeout_ms = (timeout_ns == UINT64_MAX) ? INFINITE : (DWORD)(timeout_ns / 1000000ULL);
 
-    if (!wait_all) {
-        HANDLE   events[64];
-        uint32_t event_count = 0;
-
-        for (uint32_t i = 0; i < fence_count; ++i) {
-            VriD3D11Fence *fence = p_fences[i]->p_backend_data;
-            ID3D11Fence   *d3d11_fence = fence->p_fence;
-            uint64_t       value = d3d11_fence->lpVtbl->GetCompletedValue(d3d11_fence);
-
-            if (value >= p_values[i]) {
-                // This fence is already complete
-                return VRI_SUCCESS;
-            } else if (event_count < 64) { // To prevent buffer overflow
-                HRESULT hr = d3d11_fence->lpVtbl->SetEventOnCompletion(d3d11_fence, p_values[i], fence->event);
-                if (FAILED(hr)) {
-                    return VRI_ERROR_SYSTEM_FAILURE;
-                }
-                events[event_count++] = fence->event;
-            }
-        }
-
-        if (event_count > 0) {
-            DWORD result = WaitForMultipleObjectsEx(event_count, events, FALSE, timeout_ms, TRUE);
-            if (result == WAIT_TIMEOUT) {
-                return VRI_ERROR_SYSTEM_FAILURE;
-            } else if (result == WAIT_FAILED) {
-                return VRI_ERROR_SYSTEM_FAILURE;
-            }
-        }
-    } else {
-        for (uint32_t i = 0; i < fence_count; ++i) {
-            VriD3D11Fence *fence = p_fences[i]->p_backend_data;
-            ID3D11Fence   *d3d11_fence = fence->p_fence;
-            uint64_t       value = d3d11_fence->lpVtbl->GetCompletedValue(d3d11_fence);
-
-            if (value < p_values[i]) {
-                HRESULT hr = d3d11_fence->lpVtbl->SetEventOnCompletion(d3d11_fence, p_values[i], fence->event);
-                if (FAILED(hr)) {
-                    return VRI_ERROR_SYSTEM_FAILURE;
-                }
-
-                DWORD result = WaitForSingleObjectEx(fence->event, timeout_ms, TRUE);
-                if (result == WAIT_TIMEOUT) {
-                    return VRI_ERROR_SYSTEM_FAILURE;
-                } else if (result == WAIT_FAILED) {
-                    return VRI_ERROR_SYSTEM_FAILURE;
-                }
-            }
-        }
+    if (fence_count == 0) {
+        return VRI_SUCCESS;
     }
 
-    return VRI_SUCCESS;
+    HANDLE *events_to_wait = device->allocation_callback.pfn_allocate(fence_count * sizeof(HANDLE), 8);
+    if (!events_to_wait) {
+        return VRI_ERROR_OUT_OF_MEMORY;
+    }
+
+    uint32_t event_count = 0;
+    for (uint32_t i = 0; i < fence_count; ++i) {
+        VriD3D11Fence *fence = p_fences[i]->p_backend_data;
+        ID3D11Fence   *d3d11_fence = fence->p_fence;
+
+        if (d3d11_fence->lpVtbl->GetCompletedValue(d3d11_fence) >= p_values[i]) {
+            if (!wait_all) {
+                device->allocation_callback.pfn_free(events_to_wait, fence_count * sizeof(HANDLE), 8);
+                return VRI_SUCCESS;
+            }
+
+            continue;
+        }
+
+        HRESULT hr = d3d11_fence->lpVtbl->SetEventOnCompletion(d3d11_fence, p_values[i], fence->event);
+        if (FAILED(hr)) {
+            device->allocation_callback.pfn_free(events_to_wait, fence_count * sizeof(HANDLE), 8);
+            return VRI_ERROR_SYSTEM_FAILURE;
+        }
+        events_to_wait[event_count++] = fence->event;
+    }
+
+    VriResult res = VRI_SUCCESS;
+    if (event_count > 0) {
+        DWORD timeout_ms = (timeout_ns == UINT64_MAX) ? INFINITE : (DWORD)(timeout_ns / 1000000ULL);
+        DWORD wait_result = WaitForMultipleObjectsEx(event_count, events_to_wait, (BOOL)wait_all, timeout_ms, FALSE);
+
+        if (wait_result >= WAIT_OBJECT_0 && wait_result < (WAIT_OBJECT_0 + event_count)) {
+            res = VRI_SUCCESS;
+        } else if (wait_result == WAIT_TIMEOUT) {
+            res = VRI_TIMEOUT;
+        } else {
+            res = VRI_ERROR_SYSTEM_FAILURE;
+        }
+    }
+    device->allocation_callback.pfn_free(events_to_wait, fence_count * sizeof(HANDLE), 8);
+    return res;
+}
+
+VriResult d3d11_fence_signal(VriFence fence, uint64_t value) {
+    VriD3D11Fence *d3d11_fence = fence->p_backend_data;
+    if (d3d11_fence->p_fence) {
+        ID3D11DeviceContext4 *ctx = ((VriD3D11Device *)fence->base.p_device->p_backend_data)->p_immediate_context;
+        HRESULT               hr = ctx->lpVtbl->Signal(ctx, d3d11_fence->p_fence, value);
+        return SUCCEEDED(hr) ? VRI_SUCCESS : VRI_ERROR_SYSTEM_FAILURE;
+    }
+
+    return VRI_ERROR_SYSTEM_FAILURE;
 }

@@ -3,17 +3,16 @@
 #include "vri_d3d11_device.h"
 #include "vri_d3d11_texture.h"
 
+#define SWAPCHAIN_STRUCT_SIZE (sizeof(struct VriSwapchain_T) + sizeof(VriD3D11Swapchain))
+
 static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_desc, VriSwapchain *p_swapchain);
 static void      swapchain_destroy(VriDevice device, VriSwapchain swapchain);
 static VriResult swapchain_acquire_next_image(VriDevice device, VriSwapchain swapchain, VriFence fence, uint32_t *p_image_index);
-static VriResult swapchain_present(VriDevice device, VriSwapchain swapchain, VriFence fence);
-static size_t    get_swapchain_size(void);
 
 void d3d11_register_swapchain_functions(VriDeviceDispatchTable *table) {
     table->pfn_swapchain_create = swapchain_create;
     table->pfn_swapchain_destroy = swapchain_destroy;
     table->pfn_swapchain_acquire_next_image = swapchain_acquire_next_image;
-    table->pfn_swapchain_present = swapchain_present;
 }
 
 static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_desc, VriSwapchain *p_swapchain) {
@@ -118,8 +117,7 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
     }
 
     // We are allocating the swapchain here so we can allocate the texture together with it
-    size_t swapchain_size = get_swapchain_size();
-    *p_swapchain = vri_object_allocate(device, &device->allocation_callback, swapchain_size, VRI_OBJECT_SWAPCHAIN);
+    *p_swapchain = vri_object_allocate(device, &device->allocation_callback, SWAPCHAIN_STRUCT_SIZE, VRI_OBJECT_SWAPCHAIN);
     if (!*p_swapchain) {
         dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_FATAL, "Allocation for swapchain struct failed.");
         result = VRI_ERROR_OUT_OF_MEMORY;
@@ -134,7 +132,7 @@ static VriResult swapchain_create(VriDevice device, const VriSwapchainDesc *p_de
         hr = swapchain4->lpVtbl->GetBuffer(swapchain4, 0, COM_IID_PPV_ARGS(ID3D11Resource, &native_texture));
         if (FAILED(hr)) {
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to get buffer from swapchain");
-            device->allocation_callback.pfn_free((*p_swapchain), swapchain_size, 8);
+            device->allocation_callback.pfn_free((*p_swapchain), SWAPCHAIN_STRUCT_SIZE, 8);
             result = VRI_ERROR_SYSTEM_FAILURE;
             goto error;
         }
@@ -182,8 +180,7 @@ static void swapchain_destroy(VriDevice device, VriSwapchain swapchain) {
             internal->p_hwnd = NULL;
         }
 
-        size_t swapchain_size = get_swapchain_size();
-        device->allocation_callback.pfn_free(swapchain, swapchain_size, 8);
+        device->allocation_callback.pfn_free(swapchain, SWAPCHAIN_STRUCT_SIZE, 8);
     }
 }
 
@@ -197,13 +194,15 @@ static VriResult swapchain_acquire_next_image(VriDevice device, VriSwapchain swa
     return VRI_SUCCESS;
 }
 
-static VriResult swapchain_present(VriDevice device, VriSwapchain swapchain, VriFence fence) {
-    (void)fence;
-    (void)device;
-
+VriResult d3d11_swapchain_present(VriSwapchain swapchain, uint32_t image_index) {
     VriD3D11Swapchain *internal = swapchain->p_backend_data;
-    uint32_t           sync_interval = !!(internal->flags & VRI_SWAPCHAIN_FLAG_BIT_VSYNC);
-    uint32_t           present_flags = ((!sync_interval) & !!(internal->flags & VRI_SWAPCHAIN_FLAG_BIT_ALLOW_TEARING)) * DXGI_PRESENT_ALLOW_TEARING;
+
+    if (image_index >= 1) {
+        return VRI_ERROR_INVALID_API_USAGE;
+    }
+
+    uint32_t sync_interval = !!(internal->flags & VRI_SWAPCHAIN_FLAG_BIT_VSYNC);
+    uint32_t present_flags = ((!sync_interval) & !!(internal->flags & VRI_SWAPCHAIN_FLAG_BIT_ALLOW_TEARING)) * DXGI_PRESENT_ALLOW_TEARING;
 
     HRESULT hr = internal->p_swapchain->lpVtbl->Present(internal->p_swapchain, sync_interval, present_flags);
 
@@ -222,9 +221,4 @@ static VriResult swapchain_present(VriDevice device, VriSwapchain swapchain, Vri
         default:
             return VRI_ERROR_SYSTEM_FAILURE;
     }
-}
-
-static size_t get_swapchain_size(void) {
-    return sizeof(struct VriSwapchain_T) + // Base swapchain size
-           sizeof(VriD3D11Swapchain);      // Internal backend size
 }
