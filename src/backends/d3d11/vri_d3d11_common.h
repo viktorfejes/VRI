@@ -53,6 +53,20 @@ const static DXGI_COLOR_SPACE_TYPE vri_to_dxgi_color_space[VRI_COLORSPACE_COUNT]
     [VRI_COLORSPACE_EXTENDED_SRGB_LINEAR] = DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709,
 };
 
+const static D3D11_PRIMITIVE_TOPOLOGY d3d11_topologies[VRI_PRIMITIVE_TOPOLOGY_COUNT] = {
+    [VRI_PRIMITIVE_TOPOLOGY_POINT_LIST] = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST,
+    [VRI_PRIMITIVE_TOPOLOGY_LINE_LIST] = D3D11_PRIMITIVE_TOPOLOGY_LINELIST,
+    [VRI_PRIMITIVE_TOPOLOGY_LINE_STRIP] = D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP,
+    [VRI_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST] = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
+    [VRI_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP] = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP,
+};
+
+const static D3D11_CULL_MODE d3d11_cull_modes[VRI_CULL_MODE_COUNT] = {
+    [VRI_CULL_MODE_NONE] = D3D11_CULL_NONE,
+    [VRI_CULL_MODE_BACK] = D3D11_CULL_BACK,
+    [VRI_CULL_MODE_FRONT] = D3D11_CULL_FRONT,
+};
+
 // NOTE: Leaving this here for now in case I want to use it in the future
 static inline void COM_safe_release(IUnknown **pp_obj) {
     if (pp_obj && *pp_obj) {
@@ -71,6 +85,14 @@ static inline const VriFormat *vri_dxgi_format_to_vri(DXGI_FORMAT format) {
 
 static inline const DXGI_COLOR_SPACE_TYPE *vri_color_space_to_dxgi(VriColorSpace color_space) {
     return &vri_to_dxgi_color_space[color_space];
+}
+
+static inline D3D11_PRIMITIVE_TOPOLOGY vri_topology_to_d3d11_topology(VriPrimitiveTopology topology) {
+    return d3d11_topologies[topology];
+}
+
+static inline D3D11_CULL_MODE vri_cull_mode_to_d3d11(VriCullMode cull_mode) {
+    return d3d11_cull_modes[cull_mode];
 }
 
 #endif

@@ -266,6 +266,18 @@ void vri_command_buffers_free(VriDevice device, VriCommandPool command_pool, uin
     device->dispatch.pfn_command_buffers_free(device, command_pool, command_buffer_count, p_command_buffers);
 }
 
+VriResult vri_pipeline_layout_create(VriDevice device, const VriPipelineLayoutDesc *p_desc, VriPipelineLayout *p_pipeline_layout) {
+    return device->dispatch.pfn_pipeline_layout_create(device, p_desc, p_pipeline_layout);
+}
+
+VriResult vri_pipeline_create_graphics(VriDevice device, const VriGraphicsPipelineDesc *p_desc, VriPipeline *p_pipeline) {
+    return device->dispatch.pfn_pipeline_create_graphics(device, p_desc, p_pipeline);
+}
+
+VriResult vri_pipeline_create_compute(VriDevice device, const VriComputePipelineDesc *p_desc, VriPipeline *p_pipeline) {
+    return device->dispatch.pfn_pipeline_create_compute(device, p_desc, p_pipeline);
+}
+
 VriResult vri_texture_create(VriDevice device, const VriTextureDesc *p_desc, VriTexture *p_texture) {
     return device->dispatch.pfn_texture_create(device, p_desc, p_texture);
 }
@@ -317,6 +329,10 @@ VriResult vri_command_buffer_end(VriCommandBuffer command_buffer) {
 
 VriResult vri_command_buffer_reset(VriCommandBuffer command_buffer) {
     return command_buffer->dispatch.pfn_command_buffer_reset(command_buffer);
+}
+
+void vri_cmd_bind_pipeline(VriCommandBuffer command_buffer, VriPipeline pipeline) {
+    command_buffer->dispatch.pfn_cmd_bind_pipeline(command_buffer, pipeline);
 }
 
 VriResult vri_queue_submit(VriQueue queue, const VriQueueSubmitDesc *p_submits, uint32_t submit_count) {
@@ -379,6 +395,7 @@ static void finish_device_creation(VriDeviceDesc *p_desc, VriDevice *p_device) {
     (*p_device)->allocation_callback = p_desc->allocation_callback;
     (*p_device)->debug_callback = p_desc->debug_callback;
     (*p_device)->adapter_props = *p_desc->p_adapter_props;
+    (*p_device)->enable_api_validation = p_desc->enable_api_validation;
 }
 
 static void *default_allocator_allocate(size_t size, size_t alignment) {

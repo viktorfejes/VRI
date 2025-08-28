@@ -10,6 +10,8 @@ typedef enum {
     VRI_OBJECT_COMMAND_POOL,
     VRI_OBJECT_COMMAND_BUFFER,
     VRI_OBJECT_QUEUE,
+    VRI_OBJECT_PIPELINE_LAYOUT,
+    VRI_OBJECT_PIPELINE,
     VRI_OBJECT_TEXTURE,
     VRI_OBJECT_FENCE,
     VRI_OBJECT_SWAPCHAIN,
@@ -27,6 +29,9 @@ typedef struct {
     PFN_VriCommandPoolReset          pfn_command_pool_reset;
     PFN_VriCommandBuffersAllocate    pfn_command_buffers_allocate;
     PFN_VriCommandBuffersFree        pfn_command_buffers_free;
+    PFN_VriPipelineLayoutCreate      pfn_pipeline_layout_create;
+    PFN_VriPipelineCreateGraphics    pfn_pipeline_create_graphics;
+    PFN_VriPipelineCreateCompute     pfn_pipeline_create_compute;
     PFN_VriTextureCreate             pfn_texture_create;
     PFN_VriTextureDestroy            pfn_texture_destroy;
     PFN_VriFenceCreate               pfn_fence_create;
@@ -43,6 +48,7 @@ typedef struct {
     PFN_VriCommandBufferBegin pfn_command_buffer_begin;
     PFN_VriCommandBufferEnd   pfn_command_buffer_end;
     PFN_VriCommandBufferReset pfn_command_buffer_reset;
+    PFN_VriCmdBindPipeline    pfn_cmd_bind_pipeline;
 } VriCommandBufferDispatchTable;
 
 typedef struct {
@@ -60,6 +66,7 @@ struct VriDevice_T {
     VriAdapterProps        adapter_props;
     VriQueue               queues[VRI_QUEUE_TYPE_COUNT][MAX_QUEUES_PER_TYPE];
     uint32_t               queue_counts[VRI_QUEUE_TYPE_COUNT];
+    VriBool                enable_api_validation;
     void                  *p_backend_data;
 };
 
@@ -72,6 +79,7 @@ struct VriCommandBuffer_T {
     VriObjectBase                 base;
     VriCommandBufferDispatchTable dispatch;
     VriCommandBufferState         state;
+    VriPipeline                   pipeline;
     void                         *p_backend_data;
 };
 
@@ -94,6 +102,16 @@ struct VriFence_T {
 };
 
 struct VriSwapchain_T {
+    VriObjectBase base;
+    void         *p_backend_data;
+};
+
+struct VriPipeline_T {
+    VriObjectBase base;
+    void         *p_backend_data;
+};
+
+struct VriShaderModule_T {
     VriObjectBase base;
     void         *p_backend_data;
 };

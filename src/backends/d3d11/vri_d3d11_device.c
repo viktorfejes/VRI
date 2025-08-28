@@ -4,6 +4,7 @@
 #include "vri_d3d11_command_pool.h"
 #include "vri_d3d11_device.h"
 #include "vri_d3d11_fence.h"
+#include "vri_d3d11_pipeline.h"
 #include "vri_d3d11_queue.h"
 #include "vri_d3d11_swapchain.h"
 #include "vri_d3d11_texture.h"
@@ -157,6 +158,7 @@ VriResult d3d11_device_create(const VriDeviceDesc *p_desc, VriDevice *p_device) 
     d3d11_register_texture_functions(&(*p_device)->dispatch);
     d3d11_register_fence_functions(&(*p_device)->dispatch);
     d3d11_register_swapchain_functions(&(*p_device)->dispatch);
+    d3d11_register_pipeline_functions_with_device(&(*p_device)->dispatch);
 
     // Release remaining not needed resources
     COM_RELEASE(base_device);

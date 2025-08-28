@@ -36,6 +36,9 @@ VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriCommandPool)
 VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriFence)
 VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriSwapchain)
 VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriTexture)
+VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriPipeline)
+VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriPipelineLayout)
+VRI_DEFINE_NON_DISPATCHABLE_HANDLE(VriShaderModule)
 
 #define VRI_TRUE                1
 #define VRI_FALSE               0
@@ -151,6 +154,37 @@ typedef enum {
 } VriCommandBufferState;
 
 typedef enum {
+    VRI_PRIMITIVE_TOPOLOGY_POINT_LIST = 0,
+    VRI_PRIMITIVE_TOPOLOGY_LINE_LIST = 1,
+    VRI_PRIMITIVE_TOPOLOGY_LINE_STRIP = 2,
+    VRI_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST = 3,
+    VRI_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP = 4,
+    VRI_PRIMITIVE_TOPOLOGY_COUNT,
+    VRI_PRIMITIVE_TOPOLOGY_MAX_ENUM = 0x7FFFFFFF
+} VriPrimitiveTopology;
+
+typedef enum {
+    VRI_FRONT_FACE_COUNTER_CLOCKWISE = 0,
+    VRI_FRONT_FACE_CLOCKWISE = 1,
+    VRI_FRONT_FACE_MAX_ENUM = 0x7FFFFFFF
+} VriFrontFace;
+
+typedef enum {
+    VRI_FILL_MODE_FILL = 0,
+    VRI_FILL_MODE_LINE = 1,
+    VRI_FILL_MODE_POINT = 2,
+    VRI_FILL_MODE_MAX_ENUM = 0x7FFFFFFF
+} VriFillMode;
+
+typedef enum {
+    VRI_CULL_MODE_NONE = 0,
+    VRI_CULL_MODE_FRONT = 1,
+    VRI_CULL_MODE_BACK = 2,
+    VRI_CULL_MODE_COUNT,
+    VRI_CULL_MODE_MAX_ENUM = 0x7FFFFFFF
+} VriCullMode;
+
+typedef enum {
     VRI_QUEUE_FLAG_BIT_GRAPHICS = 1 << 0,
     VRI_QUEUE_FLAG_BIT_COMPUTE = 1 << 1,
     VRI_QUEUE_FLAG_BIT_TRANSFER = 1 << 2,
@@ -197,12 +231,15 @@ typedef enum {
 typedef VriFlags VriCommandBufferUsage;
 
 typedef enum {
-    VRI_FENCE_USAGE_BIT_NONE = 0,
-    VRI_FENCE_USAGE_BIT_CPU_WAIT = 1 << 0,
-    VRI_FENCE_USAGE_BIT_GPU_WAIT = 1 << 1,
-    VRI_FENCE_USAGE_BIT_TIMELINE = 1 << 2
-} VriFenceUsageBits;
-typedef VriFlags VriFenceUsage;
+    VRI_SHADER_STAGE_FLAG_BIT_NONE = 0,
+    VRI_SHADER_STAGE_FLAG_BIT_VERTEX = 1 << 0,
+    VRI_SHADER_STAGE_FLAG_BIT_TESSELATION_CONTROL = 1 << 1,
+    VRI_SHADER_STAGE_FLAG_BIT_TESSELATION_EVALUATION = 1 << 2,
+    VRI_SHADER_STAGE_FLAG_BIT_GEOMETRY = 1 << 3,
+    VRI_SHADER_STAGE_FLAG_BIT_FRAGMENT = 1 << 4,
+    VRI_SHADER_STAGE_FLAG_BIT_COMPUTE = 1 << 5
+} VriShaderStageFlagBits;
+typedef VriFlags VriShaderStageFlags;
 
 typedef void (*PFN_VriMessageCallback)(
     VriMessageSeverity severity,
@@ -310,6 +347,44 @@ typedef struct {
 typedef VriFenceWaitDesc VriFenceSignalDesc;
 
 typedef struct {
+    VriPrimitiveTopology topology;
+} VriInputAssemblyDesc;
+
+typedef struct {
+    VriFillMode  fill_mode;
+    VriCullMode  cull_mode;
+    VriFrontFace front_face;
+    VriBool      depth_clamp_enable;
+} VriRasterizationStateDesc;
+
+typedef struct {
+    int placeholder;
+} VriBlendStateDesc;
+
+typedef struct {
+    int placeholder;
+} VriPipelineLayoutDesc;
+
+typedef struct {
+    VriShaderStageFlagBits stage;
+    size_t                 size;
+    const void            *p_bytecode;
+    const char            *p_entry_point;
+} VriShaderModuleDesc;
+
+typedef struct {
+    const VriPipelineLayout          pipeline_layout;
+    VriShaderModuleDesc             *p_shaders;
+    uint32_t                         shader_count;
+    const VriInputAssemblyDesc      *p_input_assembly_state;
+    const VriRasterizationStateDesc *p_rasterization_state;
+} VriGraphicsPipelineDesc;
+
+typedef struct {
+    VriShaderModuleDesc *p_shader;
+} VriComputePipelineDesc;
+
+typedef struct {
     const VriCommandBuffer   *p_command_buffers;
     uint32_t                  command_buffer_count;
     const VriFenceWaitDesc   *p_fences_wait;
@@ -334,6 +409,11 @@ typedef void (*PFN_VriCommandPoolDestroy)(VriDevice device, VriCommandPool comma
 typedef void (*PFN_VriCommandPoolReset)(VriDevice device, VriCommandPool command_pool, VriCommandPoolResetFlags flags);
 typedef VriResult (*PFN_VriCommandBuffersAllocate)(VriDevice device, const VriCommandBufferAllocateDesc *p_desc, VriCommandBuffer *p_command_buffers);
 typedef void (*PFN_VriCommandBuffersFree)(VriDevice device, VriCommandPool command_pool, uint32_t command_buffer_count, const VriCommandBuffer *p_command_buffers);
+typedef void (*PFN_VriCmdBindPipeline)(VriCommandBuffer command_buffer, VriPipeline pipeline);
+typedef VriResult (*PFN_VriShaderModuleCreate)(VriDevice device, const VriShaderModuleDesc *p_desc, VriShaderModule *p_shader_module);
+typedef VriResult (*PFN_VriPipelineLayoutCreate)(VriDevice device, const VriPipelineLayoutDesc *p_desc, VriPipelineLayout *p_pipeline_layout);
+typedef VriResult (*PFN_VriPipelineCreateGraphics)(VriDevice device, const VriGraphicsPipelineDesc *p_desc, VriPipeline *p_pipeline);
+typedef VriResult (*PFN_VriPipelineCreateCompute)(VriDevice device, const VriComputePipelineDesc *p_desc, VriPipeline *p_pipeline);
 typedef VriResult (*PFN_VriTextureCreate)(VriDevice device, const VriTextureDesc *p_desc, VriTexture *p_texture);
 typedef void (*PFN_VriTextureDestroy)(VriDevice device, VriTexture texture);
 typedef VriResult (*PFN_VriFenceCreate)(VriDevice device, uint64_t initial_value, VriFence *p_fence);
@@ -389,6 +469,25 @@ void vri_command_buffers_free(
     VriCommandPool          command_pool,
     uint32_t                command_buffer_count,
     const VriCommandBuffer *p_command_buffers);
+
+void vri_cmd_bind_pipeline(
+    VriCommandBuffer command_buffer,
+    VriPipeline      pipeline);
+
+VriResult vri_pipeline_layout_create(
+    VriDevice                    device,
+    const VriPipelineLayoutDesc *p_desc,
+    VriPipelineLayout           *p_pipeline_layout);
+
+VriResult vri_pipeline_create_graphics(
+    VriDevice                      device,
+    const VriGraphicsPipelineDesc *p_desc,
+    VriPipeline                   *p_pipeline);
+
+VriResult vri_pipeline_create_compute(
+    VriDevice                     device,
+    const VriComputePipelineDesc *p_desc,
+    VriPipeline                  *p_pipeline);
 
 VriResult vri_texture_create(
     VriDevice             device,

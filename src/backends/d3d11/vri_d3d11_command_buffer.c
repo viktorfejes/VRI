@@ -1,7 +1,7 @@
 #include "vri_d3d11_command_buffer.h"
 
-#include "vri/vri.h"
 #include "vri_d3d11_device.h"
+#include "vri_d3d11_pipeline.h"
 
 #define COMMAND_BUFFER_OBJECT_SIZE (sizeof(struct VriCommandBuffer_T) + sizeof(VriD3D11CommandBuffer))
 
@@ -47,6 +47,9 @@ static VriResult d3d11_command_buffers_allocate(VriDevice device, const VriComma
         cmd->dispatch.pfn_command_buffer_end = d3d11_command_buffer_end;
         cmd->dispatch.pfn_command_buffer_reset = d3d11_command_buffer_reset;
 
+        // Fill from pipeline
+        d3d11_register_pipeline_functions_with_command_buffer(&cmd->dispatch);
+
         cmd->state = VRI_COMMAND_BUFFER_STATE_INITIAL;
         impl->p_command_list = NULL;
         p_command_buffers[i] = cmd;
@@ -71,6 +74,8 @@ static void d3d11_command_buffers_free(VriDevice device, VriCommandPool command_
 
 static VriResult d3d11_command_buffer_begin(VriCommandBuffer command_buffer, const VriCommandBufferBeginDesc *p_desc) {
     (void)p_desc;
+
+    command_buffer->pipeline = NULL;
 
     if (command_buffer->state != VRI_COMMAND_BUFFER_STATE_INITIAL &&
         command_buffer->state != VRI_COMMAND_BUFFER_STATE_EXECUTABLE) {

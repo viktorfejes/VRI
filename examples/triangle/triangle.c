@@ -153,6 +153,44 @@ int main(void) {
         }
     }
 
+    // Pipeline Creation
+    VriPipeline graphics_pipeline;
+    {
+        VriPipelineLayout pipeline_layout;
+
+        VriPipelineLayoutDesc pipeline_layout_desc = {
+            .placeholder = 0,
+        };
+        vri_pipeline_layout_create(device, &pipeline_layout_desc, &pipeline_layout);
+
+        VriInputAssemblyDesc input_assembly_desc = {
+            .topology = VRI_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        };
+
+        VriRasterizationStateDesc rasterization_state_desc = {
+            .fill_mode = VRI_FILL_MODE_FILL,
+            .cull_mode = VRI_CULL_MODE_BACK,
+            .front_face = VRI_FRONT_FACE_COUNTER_CLOCKWISE,
+            .depth_clamp_enable = VRI_FALSE,
+        };
+
+        VriShaderModuleDesc tri_sm_vs = {
+            .stage = VRI_SHADER_STAGE_FLAG_BIT_VERTEX,
+            .p_bytecode = NULL,
+            .size = 0,
+            .p_entry_point = "main",
+        };
+
+        VriGraphicsPipelineDesc pipeline_desc = {
+            .pipeline_layout = pipeline_layout,
+            .p_shaders = (VriShaderModuleDesc[]){tri_sm_vs},
+            .shader_count = 1,
+            .p_input_assembly_state = &input_assembly_desc,
+            .p_rasterization_state = &rasterization_state_desc,
+        };
+        vri_pipeline_create_graphics(device, &pipeline_desc, &graphics_pipeline);
+    }
+
     uint64_t frame_number = 0;
     uint64_t frame_complete_counter = 0;
     uint64_t image_acquire_counter = 0;
@@ -188,6 +226,8 @@ int main(void) {
         if (VRI_ERROR(vri_command_buffer_begin(command_buffer, &cmd_buf_desc))) {
             printf("Command Buffer Begin Error\n");
         }
+
+        vri_cmd_bind_pipeline(command_buffer, graphics_pipeline);
 
         // TODO: Record, render, draw...etc
 
