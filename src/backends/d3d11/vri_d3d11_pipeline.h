@@ -26,6 +26,7 @@ typedef struct {
     D3D11_PRIMITIVE_TOPOLOGY topology;
     D3D11_RASTERIZER_DESC    rasterizer_desc;
     uint32_t                 sample_mask;
+    uint32_t                 sample_count;
 } VriD3D11Pipeline;
 
 void d3d11_register_pipeline_functions_with_device(VriDeviceDispatchTable *table);

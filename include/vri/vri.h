@@ -185,6 +185,64 @@ typedef enum {
 } VriCullMode;
 
 typedef enum {
+    VRI_COMPARE_NEVER = 0,
+    VRI_COMPARE_LESS = 1,
+    VRI_COMPARE_EQUAL = 2,
+    VRI_COMPARE_LESS_EQUAL = 3,
+    VRI_COMPARE_GREATER = 4,
+    VRI_COMPARE_NOT_EQUAL = 5,
+    VRI_COMPARE_GREATER_EQUAL = 6,
+    VRI_COMPARE_ALWAYS = 7,
+    VRI_COMPARE_MAX_ENUM = 0x7FFFFFFF
+} VriCompareOp;
+
+typedef enum {
+    VRI_STENCIL_OP_KEEP = 0,
+    VRI_STENCIL_OP_ZERO = 1,
+    VRI_STENCIL_OP_REPLACE = 2,
+    VRI_STENCIL_OP_INCR_CLAMP = 3,
+    VRI_STENCIL_OP_DECR_CLAMP = 4,
+    VRI_STENCIL_OP_INVERT = 5,
+    VRI_STENCIL_OP_INCR_WRAP = 6,
+    VRI_STENCIL_OP_DECR_WRAP = 7,
+    VRI_STENCIL_OP_MAX_ENUM = 0x7FFFFFFF
+} VriStencilOp;
+
+typedef enum {
+    VRI_BLEND_ZERO = 0,
+    VRI_BLEND_ONE = 1,
+    VRI_BLEND_SRC_COLOR = 2,
+    VRI_BLEND_ONE_MINUS_SRC_COLOR = 3,
+    VRI_BLEND_DST_COLOR = 4,
+    VRI_BLEND_ONE_MINUS_DST_COLOR = 5,
+    VRI_BLEND_SRC_ALPHA = 6,
+    VRI_BLEND_ONE_MINUS_SRC_ALPHA = 7,
+    VRI_BLEND_DST_ALPHA = 8,
+    VRI_BLEND_ONE_MINUS_DST_ALPHA = 9,
+    VRI_BLEND_CONSTANT_COLOR = 10,
+    VRI_BLEND_ONE_MINUS_CONSTANT_COLOR = 11,
+    VRI_BLEND_CONSTANT_ALPHA = 12,
+    VRI_BLEND_ONE_MINUS_CONSTANT_ALPHA = 13,
+    VRI_BLEND_SRC_ALPHA_SATURATE = 14,
+    VRI_BLEND_MAX_ENUM = 0x7FFFFFFF
+} VriBlendFactor;
+
+typedef enum {
+    VRI_BLEND_OP_ADD = 0,
+    VRI_BLEND_OP_SUBTRACT = 1,
+    VRI_BLEND_OP_REVERSE_SUBTRACT = 2,
+    VRI_BLEND_OP_MIN = 3,
+    VRI_BLEND_OP_MAX = 4,
+    VRI_BLEND_OP_MAX_ENUM = 0x7FFFFFFF
+} VriBlendOp;
+
+typedef enum {
+    VRI_VERTEX_INPUT_RATE_VERTEX = 0,
+    VRI_VERTEX_INPUT_RATE_INSTANCE = 1,
+    VRI_VERTEX_INPUT_RATE_MAX_ENUM = 0x7FFFFFFF
+} VriVertexInputRate;
+
+typedef enum {
     VRI_QUEUE_FLAG_BIT_GRAPHICS = 1 << 0,
     VRI_QUEUE_FLAG_BIT_COMPUTE = 1 << 1,
     VRI_QUEUE_FLAG_BIT_TRANSFER = 1 << 2,
@@ -358,7 +416,38 @@ typedef struct {
 } VriRasterizationStateDesc;
 
 typedef struct {
-    int placeholder;
+    VriStencilOp fail_op;
+    VriStencilOp depth_fail_op;
+    VriStencilOp pass_op;
+    VriCompareOp compare_op;
+} VriStencilOpDesc;
+
+typedef struct {
+    VriBool          depth_test_enable;
+    VriBool          depth_write_enable;
+    VriCompareOp     depth_compare_op;
+    VriBool          stencil_test_enable;
+    uint8_t          stencil_read_mask;
+    uint8_t          stencil_write_mask;
+    VriStencilOpDesc front;
+    VriStencilOpDesc back;
+} VriDepthStencilStateDesc;
+
+typedef struct VriBlendAttachmentDesc {
+    VriBool        blend_enable;
+    VriBlendFactor src_color;
+    VriBlendFactor dst_color;
+    VriBlendOp     color_op;
+    VriBlendFactor src_alpha;
+    VriBlendFactor dst_alpha;
+    VriBlendOp     alpha_op;
+    uint8_t        color_write_mask;
+} VriBlendAttachmentDesc;
+
+typedef struct {
+    VriBlendAttachmentDesc render_targets[8];
+    uint32_t               render_target_count;
+    VriBool                independent_blend_enable;
 } VriBlendStateDesc;
 
 typedef struct {
@@ -373,11 +462,51 @@ typedef struct {
 } VriShaderModuleDesc;
 
 typedef struct {
+    uint32_t           binding_slot; // Binding slot index
+    uint32_t           stride;       // Bytes per vertex
+    VriVertexInputRate input_rate;   // VERTEX or INSTANCE
+} VriVertexBindingDesc;
+
+typedef struct {
+    uint32_t location; // For Vulkan
+} VriVertexAttributeVK;
+
+typedef struct {
+    const char *semantic_name;  // For D3D
+    uint32_t    semantic_index; // For D3D
+} VriVertexAttributeD3D;
+
+typedef struct {
+    VriVertexAttributeD3D d3d;
+    VriVertexAttributeVK  vk;
+    uint32_t              binding; // Binding slot
+    VriFormat             format;  // Format
+    uint32_t              offset;  // Offset in bytes within vertex
+} VriVertexAttributeDesc;
+
+typedef struct {
+    const VriVertexBindingDesc   *p_bindings;
+    uint32_t                      binding_count;
+    const VriVertexAttributeDesc *p_attributes;
+    uint32_t                      attribute_count;
+} VriVertexInputDesc;
+
+typedef struct {
+    uint32_t sample_mask;
+    uint8_t  sample_count;
+    VriBool  alpha_to_coverage;
+} VriMultisampleStateDesc;
+
+typedef struct {
     const VriPipelineLayout          pipeline_layout;
     VriShaderModuleDesc             *p_shaders;
     uint32_t                         shader_count;
     const VriInputAssemblyDesc      *p_input_assembly_state;
+    const VriVertexInputDesc        *p_vertex_input;
     const VriRasterizationStateDesc *p_rasterization_state;
+    const VriDepthStencilStateDesc  *p_depth_stencil_state;
+    const VriBlendStateDesc         *p_blend_state;
+    const VriMultisampleStateDesc   *p_multisample_state;
 } VriGraphicsPipelineDesc;
 
 typedef struct {
