@@ -118,5 +118,6 @@ struct VriShaderModule_T {
 
 void  vri_object_base_init(VriDevice device, VriObjectBase *base, VriObjectType type);
 void *vri_object_allocate(VriDevice device, const VriAllocationCallback *alloc, size_t size, VriObjectType type);
+void  vri_object_free(VriDevice device, const VriAllocationCallback *alloc, void *object);
 
 #endif

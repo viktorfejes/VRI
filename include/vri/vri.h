@@ -193,6 +193,7 @@ typedef enum {
     VRI_COMPARE_NOT_EQUAL = 5,
     VRI_COMPARE_GREATER_EQUAL = 6,
     VRI_COMPARE_ALWAYS = 7,
+    VRI_COMPARE_COUNT,
     VRI_COMPARE_MAX_ENUM = 0x7FFFFFFF
 } VriCompareOp;
 
@@ -205,6 +206,7 @@ typedef enum {
     VRI_STENCIL_OP_INVERT = 5,
     VRI_STENCIL_OP_INCR_WRAP = 6,
     VRI_STENCIL_OP_DECR_WRAP = 7,
+    VRI_STENCIL_OP_COUNT,
     VRI_STENCIL_OP_MAX_ENUM = 0x7FFFFFFF
 } VriStencilOp;
 
@@ -224,6 +226,7 @@ typedef enum {
     VRI_BLEND_CONSTANT_ALPHA = 12,
     VRI_BLEND_ONE_MINUS_CONSTANT_ALPHA = 13,
     VRI_BLEND_SRC_ALPHA_SATURATE = 14,
+    VRI_BLEND_COUNT,
     VRI_BLEND_MAX_ENUM = 0x7FFFFFFF
 } VriBlendFactor;
 
@@ -233,6 +236,7 @@ typedef enum {
     VRI_BLEND_OP_REVERSE_SUBTRACT = 2,
     VRI_BLEND_OP_MIN = 3,
     VRI_BLEND_OP_MAX = 4,
+    VRI_BLEND_OP_COUNT,
     VRI_BLEND_OP_MAX_ENUM = 0x7FFFFFFF
 } VriBlendOp;
 
@@ -431,24 +435,26 @@ typedef struct {
     uint8_t          stencil_write_mask;
     VriStencilOpDesc front;
     VriStencilOpDesc back;
+    uint32_t         stencil_reference;
 } VriDepthStencilStateDesc;
 
 typedef struct VriBlendAttachmentDesc {
     VriBool        blend_enable;
-    VriBlendFactor src_color;
-    VriBlendFactor dst_color;
-    VriBlendOp     color_op;
-    VriBlendFactor src_alpha;
-    VriBlendFactor dst_alpha;
-    VriBlendOp     alpha_op;
+    VriBlendFactor src_color_blend_factor;
+    VriBlendFactor dst_color_blend_factor;
+    VriBlendOp     color_blend_op;
+    VriBlendFactor src_alpha_blend_factor;
+    VriBlendFactor dst_alpha_blend_factor;
+    VriBlendOp     alpha_blend_op;
     uint8_t        color_write_mask;
-} VriBlendAttachmentDesc;
+} VriColorBlendAttachmentDesc;
 
 typedef struct {
-    VriBlendAttachmentDesc render_targets[8];
-    uint32_t               render_target_count;
-    VriBool                independent_blend_enable;
-} VriBlendStateDesc;
+    VriColorBlendAttachmentDesc render_targets[8];
+    uint32_t                    render_target_count;
+    VriBool                     independent_blend_enable;
+    VriBool                     alpha_to_coverage_enable;
+} VriColorBlendStateDesc;
 
 typedef struct {
     int placeholder;
@@ -493,8 +499,11 @@ typedef struct {
 
 typedef struct {
     uint32_t sample_mask;
-    uint8_t  sample_count;
-    VriBool  alpha_to_coverage;
+    uint32_t sample_count;
+    float    min_sample_shading;    // (Vulkan only)
+    VriBool  sample_shading_enable; // Vulkan only
+    VriBool  alpha_to_coverage_enable;
+    VriBool  alpha_to_one_enable;
 } VriMultisampleStateDesc;
 
 typedef struct {
@@ -505,7 +514,7 @@ typedef struct {
     const VriVertexInputDesc        *p_vertex_input;
     const VriRasterizationStateDesc *p_rasterization_state;
     const VriDepthStencilStateDesc  *p_depth_stencil_state;
-    const VriBlendStateDesc         *p_blend_state;
+    const VriColorBlendStateDesc    *p_color_blend_state;
     const VriMultisampleStateDesc   *p_multisample_state;
 } VriGraphicsPipelineDesc;
 

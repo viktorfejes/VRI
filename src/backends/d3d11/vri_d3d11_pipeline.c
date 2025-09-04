@@ -102,7 +102,7 @@ static VriResult d3d11_pipeline_create_graphics(VriDevice device, const VriGraph
                 } break;
 
                 default:
-                    device->allocation_callback.pfn_free(p_pipeline, PIPELINE_OBJECT_SIZE, 8);
+                    device->allocation_callback.pfn_free(*p_pipeline, PIPELINE_OBJECT_SIZE, 8);
                     return VRI_ERROR_INVALID_API_USAGE;
             }
 
@@ -122,6 +122,12 @@ static VriResult d3d11_pipeline_create_graphics(VriDevice device, const VriGraph
     // Vertex Input
     {
         if (p_desc->p_vertex_input) {
+            // Make sure we have vertex shader when we have vertex input
+            if (!vertex_shader) {
+                err = VRI_ERROR_INVALID_API_USAGE;
+                goto error;
+            }
+
             const VriVertexInputDesc *vdesc = p_desc->p_vertex_input;
 
             size_t                    elems_allocate_size = sizeof(D3D11_INPUT_ELEMENT_DESC) * vdesc->attribute_count;
@@ -170,7 +176,7 @@ static VriResult d3d11_pipeline_create_graphics(VriDevice device, const VriGraph
             .FillMode = rdesc->fill_mode == VRI_FILL_MODE_FILL ? D3D11_FILL_SOLID : D3D11_FILL_WIREFRAME,
             .CullMode = vri_cull_mode_to_d3d11(rdesc->cull_mode),
             .FrontCounterClockwise = rdesc->front_face == VRI_FRONT_FACE_COUNTER_CLOCKWISE ? TRUE : FALSE,
-            .DepthClipEnable = rdesc->depth_clamp_enable,
+            .DepthClipEnable = rdesc->depth_clamp_enable ? FALSE : TRUE,
             .MultisampleEnable = p_desc->p_multisample_state->sample_count > 1 ? TRUE : FALSE,
         };
 
@@ -179,6 +185,118 @@ static VriResult d3d11_pipeline_create_graphics(VriDevice device, const VriGraph
             dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create rasterizer state");
             err = VRI_ERROR_SYSTEM_FAILURE;
             goto error;
+        }
+    }
+
+    // Blend State (OM)
+    {
+        // If user provided a color blend state, use it; otherwise create a default opaque write-through state.
+        D3D11_BLEND_DESC blend_desc = {
+            .AlphaToCoverageEnable = FALSE,
+            .IndependentBlendEnable = FALSE,
+        };
+
+        if (p_desc->p_color_blend_state) {
+            const VriColorBlendStateDesc *cbs = p_desc->p_color_blend_state;
+            blend_desc.IndependentBlendEnable = cbs->independent_blend_enable ? TRUE : FALSE;
+            blend_desc.AlphaToCoverageEnable = cbs->alpha_to_coverage_enable ? TRUE : FALSE;
+
+            uint32_t rt_count = cbs->render_target_count ? cbs->render_target_count : 1;
+            rt_count = rt_count > D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT ? D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT : rt_count;
+
+            for (uint32_t i = 0; i < rt_count; ++i) {
+                const VriColorBlendAttachmentDesc *att = &cbs->render_targets[i];
+
+                D3D11_RENDER_TARGET_BLEND_DESC *rt = &blend_desc.RenderTarget[i];
+                rt->BlendEnable = att->blend_enable ? TRUE : FALSE;
+                rt->SrcBlend = vri_blend_factor_to_d3d11(att->src_color_blend_factor);
+                rt->DestBlend = vri_blend_factor_to_d3d11(att->dst_color_blend_factor);
+                rt->BlendOp = vri_blend_op_to_d3d11(att->color_blend_op);
+                rt->SrcBlendAlpha = vri_blend_factor_to_d3d11(att->src_alpha_blend_factor);
+                rt->DestBlendAlpha = vri_blend_factor_to_d3d11(att->dst_alpha_blend_factor);
+                rt->BlendOpAlpha = vri_blend_op_to_d3d11(att->alpha_blend_op);
+                rt->RenderTargetWriteMask = att->color_write_mask;
+            }
+
+            d3d11_pipeline->render_target_count = rt_count;
+        } else {
+            // default: no blending, write all channels
+            blend_desc.RenderTarget[0].BlendEnable = FALSE;
+            blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+            d3d11_pipeline->render_target_count = 1;
+        }
+
+        hr = d3d11_device->lpVtbl->CreateBlendState(d3d11_device, &blend_desc, &d3d11_pipeline->p_blend_state);
+        if (FAILED(hr)) {
+            dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create blend state");
+            goto error;
+        }
+
+        // store a default sample mask (D3D11 uses sample mask on OMSetBlendState)
+        d3d11_pipeline->sample_mask = 0xFFFFFFFF;
+    }
+
+    // Depth-Stencil State
+    {
+        if (p_desc->p_depth_stencil_state) {
+            const VriDepthStencilStateDesc *dsdesc = p_desc->p_depth_stencil_state;
+
+            D3D11_DEPTH_STENCIL_DESC depth_stencil_desc = {
+                .DepthEnable = dsdesc->depth_test_enable ? TRUE : FALSE,
+                .DepthWriteMask = dsdesc->depth_write_enable ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO,
+                .DepthFunc = vri_compare_op_to_d3d11(dsdesc->depth_compare_op),
+
+                .StencilEnable = dsdesc->stencil_test_enable ? TRUE : FALSE,
+                .StencilReadMask = dsdesc->stencil_read_mask,
+                .StencilWriteMask = dsdesc->stencil_write_mask,
+
+                .FrontFace.StencilFailOp = vri_stencil_op_to_d3d11(dsdesc->front.fail_op),
+                .FrontFace.StencilDepthFailOp = vri_stencil_op_to_d3d11(dsdesc->front.depth_fail_op),
+                .FrontFace.StencilPassOp = vri_stencil_op_to_d3d11(dsdesc->front.pass_op),
+                .FrontFace.StencilFunc = vri_compare_op_to_d3d11(dsdesc->front.compare_op),
+
+                .BackFace.StencilFailOp = vri_stencil_op_to_d3d11(dsdesc->back.fail_op),
+                .BackFace.StencilDepthFailOp = vri_stencil_op_to_d3d11(dsdesc->back.depth_fail_op),
+                .BackFace.StencilPassOp = vri_stencil_op_to_d3d11(dsdesc->back.pass_op),
+                .BackFace.StencilFunc = vri_compare_op_to_d3d11(dsdesc->back.compare_op),
+            };
+
+            hr = d3d11_device->lpVtbl->CreateDepthStencilState(d3d11_device, &depth_stencil_desc, &d3d11_pipeline->p_depth_stencil_state);
+            if (FAILED(hr)) {
+                dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create depth stencil state");
+                err = VRI_ERROR_SYSTEM_FAILURE;
+                goto error;
+            }
+
+            d3d11_pipeline->stencil_ref = dsdesc->stencil_reference ? dsdesc->stencil_reference : 0;
+        } else {
+            // If no depth/stencil state supplied, create a default disabled depth/stencil state
+            D3D11_DEPTH_STENCIL_DESC dsd = {0};
+            dsd.DepthEnable = FALSE;
+            dsd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+            dsd.DepthFunc = D3D11_COMPARISON_ALWAYS;
+            dsd.StencilEnable = FALSE;
+
+            hr = d3d11_device->lpVtbl->CreateDepthStencilState(d3d11_device, &dsd, &d3d11_pipeline->p_depth_stencil_state);
+            if (FAILED(hr)) {
+                dbg.pfn_message_callback(VRI_MESSAGE_SEVERITY_ERROR, "Failed to create default depth/stencil state");
+                goto error;
+            }
+            d3d11_pipeline->stencil_ref = 0;
+        }
+    }
+
+    // Multisample
+    {
+        if (p_desc->p_multisample_state) {
+            // D3D11 doesn't have a dedicated multisample state object like Vulkan.
+            // Sampling behavior is mostly determined at texture/RT creation. We still store sample_count.
+            d3d11_pipeline->sample_count = (UINT)p_desc->p_multisample_state->sample_count;
+            d3d11_pipeline->sample_shading_enable = p_desc->p_multisample_state->sample_shading_enable;
+            // alpha-to-coverage handled by blend_desc.AlphaToCoverageEnable above
+        } else {
+            d3d11_pipeline->sample_count = 1;
+            d3d11_pipeline->sample_shading_enable = 0;
         }
     }
 
@@ -192,7 +310,6 @@ error:
     COM_SAFE_RELEASE(d3d11_pipeline->p_domain_shader);
     COM_SAFE_RELEASE(d3d11_pipeline->p_geometry_shader);
     COM_SAFE_RELEASE(d3d11_pipeline->p_pixel_shader);
-    COM_SAFE_RELEASE(d3d11_pipeline->p_compute_shader);
     COM_SAFE_RELEASE(d3d11_pipeline->p_rasterizer_state);
     COM_SAFE_RELEASE(d3d11_pipeline->p_depth_stencil_state);
     COM_SAFE_RELEASE(d3d11_pipeline->p_blend_state);

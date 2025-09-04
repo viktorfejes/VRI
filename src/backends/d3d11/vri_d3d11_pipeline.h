@@ -27,6 +27,9 @@ typedef struct {
     D3D11_RASTERIZER_DESC    rasterizer_desc;
     uint32_t                 sample_mask;
     uint32_t                 sample_count;
+    uint32_t                 stencil_ref;
+    uint8_t                  render_target_count;
+    bool                     sample_shading_enable;
 } VriD3D11Pipeline;
 
 void d3d11_register_pipeline_functions_with_device(VriDeviceDispatchTable *table);
